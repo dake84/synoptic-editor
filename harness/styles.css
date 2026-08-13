@@ -1,0 +1,133 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  font-size: 13px;
+  color: #111;
+}
+button,
+select,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+#top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ccc;
+  background: #f6f6f6;
+}
+#status {
+  margin: 0;
+  font-weight: 600;
+}
+#session-bar,
+#factory-bar,
+.view-bar,
+#nav-panel,
+#info-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+#layout {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  min-height: 0;
+}
+#nav-panel,
+#info-panel {
+  display: block;
+  padding: 8px;
+  border-right: 1px solid #ddd;
+  overflow: auto;
+  max-height: calc(100vh - 140px);
+}
+#info-panel {
+  border-right: none;
+  border-left: 1px solid #ddd;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+#nav-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 2px 0;
+}
+#nav-panel .crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+#views {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  min-height: 240px;
+}
+.view-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #ccc;
+}
+.view-bar {
+  padding: 6px;
+  background: #f3f3f3;
+  border-bottom: 1px solid #ddd;
+}
+.view-bar .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 4px;
+}
+.view-bar .row:first-child {
+  margin-top: 0;
+}
+.pane {
+  height: 200px;
+  overflow: auto;
+}
+.cm-editor {
+  height: 100%;
+}
+#factory-bar {
+  padding: 8px 12px;
+  border-top: 1px solid #ccc;
+  background: #f6f6f6;
+}
+fieldset {
+  border: 1px solid #ccc;
+  margin: 0;
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+legend {
+  padding: 0 4px;
+}
+.dirty {
+  color: #a40;
+}
+.focused {
+  outline: 2px solid #246;
+}
+#info-panel h2,
+#nav-panel h2 {
+  font-size: 12px;
+  margin: 0 0 6px;
+  font-family: sans-serif;
+}

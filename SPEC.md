@@ -220,7 +220,7 @@ Ausschnitt geworfen und ein Geschwister adoptiert; das ist ein Konstruktionsfehl
 
 | # | Regel |
 | - | ----- |
-| **EX1** | Der lebende Ausschnitt wird durch jede Änderung abgebildet: `from` mit Assoc **−1** (Inserts an `from` bleiben innen), `to` mit Assoc **+1** (Inserts an der exklusiven Kante bleiben außen). |
+| **EX1** | Der lebende Ausschnitt wird durch jede Änderung abgebildet. `from` Assoc **−1** (Inserts an `from` bleiben innen). `to` Assoc **−1**, solange der Ausschnitt Breite hat (Inserts an der exklusiven Kante bleiben außen). Ist er leer (`from === to`), Assoc **+1** — Inserts an dem Punkt gehören zum Ausschnitt (EX3). |
 | **EX2** | Hide, Fence, Copy, Select-All und Caret-Klammer lesen **denselben** `ScopeRange` (I6). Eine zweite Berechnung derselben Range — Titel-Lookup, eingefrorene Offsets, parallele Projektion — ist ein Konstruktionsfehler. |
 | **EX3** | Leert eine View **ihren eigenen** Ausschnitt, bleibt sie gemountet und editierbar. Ein leerer Ausschnitt (`from === to`) nimmt Inserts an diesem Punkt an. Das ist nicht `lost`. |
 | **EX4** | Leert eine **fremde** Änderung (Sync) einen zuvor nicht-leeren Ausschnitt, wird er `lost`. Die Session meldet `scopeLost` **einmal** über `subscribe`. Der Bereich wächst nicht mit späteren Inserts am Kollapspunkt; lokale Edits sind gesperrt; Hide zeigt nichts. Der Host behandelt das wie Schließen (V8) — kein Tab-Chrome in der Komponente. |

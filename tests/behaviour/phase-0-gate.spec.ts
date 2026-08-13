@@ -57,7 +57,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     await page.goto("http://127.0.0.1:4174/");
   });
 
-  /** @covers G1 */
+  /** @covers G1a */
   test("G1c: source shows heading markers, wysiwyg hides them, documents stay equal", async ({ page }) => {
     const snap = (await inspect(page)).presentation;
     expect(snap.src).toBe(snap.session);
@@ -70,7 +70,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.wysDom).not.toContain("#");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1e: typing at the end of A1 stays in A1 and does not appear in A2", async ({ page }) => {
     await page.evaluate(() => {
       (window as unknown as { __spike: SpikeApi }).__spike.placeCaret("A1", "end-of-scope");
@@ -86,7 +86,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.a2Dom).not.toContain("Q");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1k: typing at A1.from stays in A1, not only in A", async ({ page }) => {
     await page.evaluate(() => {
       const s = (window as unknown as { __spike: SpikeApi }).__spike;
@@ -100,7 +100,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.a1Dom).toContain("X");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1n: enter at A1.from stays in A1 and does not leak a line into A only", async ({ page }) => {
     await page.evaluate(() => {
       const s = (window as unknown as { __spike: SpikeApi }).__spike;
@@ -113,7 +113,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.a2Visible.startsWith("## A2")).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1p: emptying A emits scopeLost; typing in A does not reappear in A1/A2", async ({ page }) => {
     await page.evaluate(() => {
       const s = (window as unknown as { __spike: SpikeApi }).__spike;
@@ -131,7 +131,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.session).toContain("Z");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1f: typing in A2 is visible in parent A, not in A1", async ({ page }) => {
     await page.evaluate(() => {
       (window as unknown as { __spike: SpikeApi }).__spike.placeCaret("A2", "A2 body");
@@ -145,7 +145,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.a1Visible).not.toContain("W");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1g: select-all copy from A1 is clipped to A1, not A2 body", async ({ page }) => {
     const text = await page.evaluate(() => {
       const s = (window as unknown as { __spike: SpikeApi }).__spike;
@@ -157,7 +157,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(text).not.toContain("A body");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1h: backspace at A1's fence does not reveal A2 in A1", async ({ page }) => {
     await page.evaluate(() => {
       (window as unknown as { __spike: SpikeApi }).__spike.placeCaret("A1", "fence");
@@ -176,7 +176,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.a1Dom).not.toContain("A2 body");
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   test("G1i: select-all + delete in A1 does not pull A2 into A1", async ({ page }) => {
     await page.evaluate(() => {
       (window as unknown as { __spike: SpikeApi }).__spike.selectAll("A1");
@@ -190,7 +190,7 @@ test.describe("phase-0 gate (G1–G3 against live CM6 views)", () => {
     expect(snap.a1Dom).not.toContain("A2 body");
   });
 
-  /** @covers G1 */
+  /** @covers G1a */
   test("G1j: typing a heading at the end of source stays visible", async ({ page }) => {
     await page.evaluate(() => {
       const s = (window as unknown as { __spike: SpikeApi }).__spike;

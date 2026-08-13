@@ -29,7 +29,7 @@ Other body.
 `;
 
 describe("projectTree", () => {
-  /** @covers I2 */
+  /** @covers I2, I8 */
   it("projects nodes from headings + frontmatter and reprojects after edits", () => {
     const tree = projectTree(DOC, FIXTURE_SCHEMA);
     expect(tree.roots).toEqual(["root", "other"]);

@@ -12,8 +12,8 @@ import { join } from "node:path";
 const SPEC_FILE = "SPEC.md";
 const TESTS_DIR = "tests";
 
-// Longest prefix first so "TP"/"FM"/"RP" aren't swallowed by "T"/"F"/"R".
-const RULE_PREFIXES = ["TP", "FM", "RP", "I", "V", "S", "R", "U", "D", "L", "W", "P", "F", "B", "G"];
+// Longest prefix first so "TP"/"FM"/"RP"/"EX" aren't swallowed by "T"/"F"/"R"/"E".
+const RULE_PREFIXES = ["TP", "FM", "RP", "EX", "I", "V", "S", "R", "U", "D", "L", "W", "P", "F", "B", "G"];
 
 function extractRuleIds(text) {
   const ids = new Set();
@@ -21,6 +21,8 @@ function extractRuleIds(text) {
     const re = new RegExp(`\\b${prefix}(\\d{1,3})\\b`, "g");
     for (const m of text.matchAll(re)) ids.add(`${prefix}${m[1]}`);
   }
+  // G1a / G1b (SPEC § 11.3) — letter suffix is part of the id.
+  for (const m of text.matchAll(/\bG(\d{1,3})([a-z])\b/g)) ids.add(`G${m[1]}${m[2]}`);
   return ids;
 }
 

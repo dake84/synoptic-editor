@@ -46,73 +46,73 @@ describe("phase-0 spike against installed CM6", () => {
     expect(a.subtreeTo).toBe(SPIKE_DOC.length);
   });
 
-  /** @covers G1, I1 */
+  /** @covers G1a, I1 */
   it("G1 presentation: same document in source and wysiwyg; markers stay in the string", () => {
     const result = proveG1Presentation(createPresentationSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1 scope: insert in A1 is visible in parent A, not in A2", () => {
     const result = proveG1Scope(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1e: insert at the end of A1 stays in A1, not in A2", () => {
     const result = proveG1Boundary(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1h: backspace at A1's exclusive end does not join A2 onto A1", () => {
     const result = proveG1Backspace(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1i: deleting A1's range does not make the A1 view show A2", () => {
     const result = proveG1SelectAllDelete(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1k: typing at A1.from stays in the A1 excerpt", () => {
     const result = proveG1NoPrepend(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1n: enter at A1.from stays in A1 and does not leak a line into A only", () => {
     const result = proveG1EnterAtFrom(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1o: A1 stays mounted on its excerpt after ## A1 is gone", () => {
     const result = proveG1StayMounted(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1p: A emptying the subtree emits scopeLost; typing in A does not reattach A1/A2", () => {
     const result = proveG1ScopeLost(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1l: source caret may sit on ##; the marker is not an atom", () => {
     const result = proveG1TitleCaret(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1m: source can delete one # of ## A1", () => {
     const result = proveG1SourceMarkerChars(createScopeSession());
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1a */
   it("G1j: a heading at document end stays visible in document-scoped views", () => {
     const result = proveG1DocumentEnd(createPresentationSession());
     expect(result.passed, result.detail).toBe(true);
@@ -127,7 +127,7 @@ describe("phase-0 spike against installed CM6", () => {
     ]);
   });
 
-  /** @covers G2, L1, L2, L3, I6 */
+  /** @covers G2, L1, L2, L3, L6, I6 */
   it("G2: wysiwyg L1–L3 guards run only on the wysiwyg state, with no view-identity annotation", () => {
     const result = proveG2(createPresentationSession());
     expect(result.passed, result.detail).toBe(true);
@@ -176,7 +176,7 @@ describe("phase-0 spike against installed CM6", () => {
     expect(result.passed, result.detail).toBe(true);
   });
 
-  /** @covers G1 */
+  /** @covers G1b */
   it("G1g: select-all copy from A1 is clipped to A1, not A2 body", () => {
     const session = createScopeSession();
     const a1 = session.views.find((v) => v.id === "A1")!;
