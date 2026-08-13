@@ -255,7 +255,7 @@ Verbindlich. Verletzung ist ein Defekt, kein Kompromiss.
 | **I2** | Der Tree ist jederzeit Projektion des Document. Kein Pfad ändert den Tree ohne Textänderung. |
 | **I3** | Genau eine Timeline je Session mit genau einem Eintrittspunkt. Kein Routing zwischen Stacks. |
 | **I4** | Jede Änderung der Scrollposition hat genau einen Owner und eine benannte Ursache. |
-| **I5** | Kein Retry, kein Timeout, kein Best-Effort in Scroll-, Fokus- oder Selektionspfaden. |
+| **I5** | Kein Warten auf eine **geratene Dauer** (Timeout, Poll-Intervall, Retry) in Scroll-, Fokus- oder Selektionspfaden. Ein einzelnes Warten auf ein **wohldefiniertes Ereignis** (ein Frame, ein Microtask) ist zulässig — es rät nichts, es feuert deterministisch genau einmal. Siehe `SETUP.md` § 4, `check-no-waiting`. |
 | **I6** | Eine Invariante wird an einer Stelle berechnet und durchgesetzt. Keine zweite Absicherung derselben Regel. |
 | **I7** | Dirty ist abgeleitet, nie mitgeführt. |
 | **I8** | Der Kern ist frei von UI-Framework-Abhängigkeiten und ohne DOM testbar. |
@@ -364,7 +364,11 @@ Undo läuft identisch mit dem invertierten `ChangeSet`; Schritte 5–7 wiederhol
 
 **Kritisch für V-M:** Schritt 4 muss atomar über alle States sein — eine Teilweiterleitung
 hinterlässt divergierende Dokumente. Diese Fehlerklasse existiert in V-S nicht und ist ein
-Kriterium in § 10.4.
+Kriterium in § 11.4.
+
+**Kritisch für beide Varianten:** `EditorView.update` ist nicht reentrant (§ 11.1 Punkt 6) —
+der Weiterleitungs-/Fan-out-Code darf beim Durchlaufen der Views keinen weiteren Dispatch
+auslösen, unabhängig von der Variante.
 
 ---
 
@@ -566,6 +570,18 @@ ausschließlich der Synchronisationskern.
    Dekorationen und atomare Bereiche können auch bei geteiltem State je View abweichen.
 4. `changeFilter`, `transactionFilter` und `keymap` liegen auf State-Ebene — View-Bezug dort
    nur über Transaktions-Annotationen.
+5. **`Text` ist eine persistente, unveränderliche Rope-Struktur.** Mehrere States können
+   beim Anlegen denselben `Text` per Referenz teilen (kein Kopieraufwand). Nach einer
+   Änderung erzeugt jeder State, der sie anwendet, sein eigenes neues Wurzelobjekt; nur
+   unveränderte Teilbäume bleiben strukturell geteilt — Kopieraufwand je Änderung ist
+   **O(log n)**, nicht O(n). Betrifft beide Varianten gleich.
+6. `EditorView.update` ist **nicht reentrant** — ein Aufruf während eines laufenden Updates
+   ist ein Fehler. Ein Fan-out-/Weiterleitungs-Koordinator darf beim Durchlaufen der Views
+   keinen weiteren Dispatch auslösen (z. B. aus einem `updateListener`, der reflexhaft
+   zurückschreibt). Gilt unabhängig davon, ob der Ziel-State geteilt ist oder nicht.
+7. Layout-Geometrie ist nur in einer separaten, per `requestAnimationFrame` geplanten
+   Messphase verfügbar; synchrones Messen während eines Updates ist ausgeschlossen (bestätigt
+   T13).
 
 Folge: **Parallele Views mit unterschiedlicher Presentation sind in beiden Varianten
 möglich.**

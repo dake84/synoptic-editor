@@ -120,7 +120,7 @@ Jede erzwingt eine Invariante, die sonst erodiert.
 | Skript | Erzwingt | Vorgehen |
 | ------ | -------- | -------- |
 | `check-core-purity` | **I8** | `src/core/**` importiert nichts aus `@codemirror/view`, keinem UI-Framework, keinem DOM-Global. Verstoß = Fehler. |
-| `check-no-waiting` | **I5** | Kein `setTimeout`, `waitForTimeout`, `sleep`, `retry` in `tests/**`. Ein Test, der auf Zeit wartet, ist per Definition nicht bestanden. |
+| `check-no-waiting` | **I5** | Kein `setTimeout`, `waitForTimeout`, `sleep`, Poll-Schleife mit Intervall/Backoff in `tests/**` — das rät eine Dauer. **Erlaubt** ist ein einzelnes, unbedingtes Warten auf ein wohldefiniertes Ereignis (ein `requestAnimationFrame`, ein Microtask-Flush) — das rät nichts. Für `visibleNode`: Positions→Node-Auflösung als reine Funktion mit injizierter Geometrie unit-testen; nur die Integration gegen echtes Layout braucht den einen Frame-Await. |
 | `check-rules-covered` | Spec-Deckung | § 2 |
 | `check-export-surface` | **F5** (Spec § 5) | `src/index.ts` exportiert genau die Namen aus SPEC § 12 — nicht mehr. Neue Exporte erfordern eine Spec-Änderung. |
 
