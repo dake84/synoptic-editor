@@ -34,25 +34,23 @@ Repository-Schnitt, Prüfskripte, Testebenen und Agenten-Budget: `SETUP.md`.
 
 ## Tests
 
-| Ebene | Umfang | Variantenbindung |
-| ----- | ------ | ---------------- |
-| Verhalten (E2E) | `SPEC.md` § 14, T1–T106 | variantenunabhängig, laufen gegen beide |
-| Verhalten (E2E) | T-V1, T-V2 | je Variante festgeschrieben |
-| Unit | Synchronisationskern | je Variante getrennt |
+| Ebene | Umfang |
+| ----- | ------ |
+| Verhalten (E2E) | `SPEC.md` § 14, T1–T108 |
+| Unit | Sync-Kern-Mechanik (§ 11.2) |
 
 E2E-Tests lösen Zustände über die Kommandoschnittstelle aus (`SPEC.md` § 13.4), nicht über
 Zeigergesten.
 
 ## Phasen
 
-`SPEC.md` § 16. **Phase 0 ist das Risikotor G1–G3** — Presentation, Guards,
-Selektionsunabhängigkeit; ohne geteilten `EditorState`. Phase 1 folgt der Spike-Konstruktion
-(ein `EditorState` je View, Document-Weiterleitung). V-S ist dokumentierte Alternative
-(§ 11.2), nicht durch das Tor gedeckt.
+`SPEC.md` § 16. Sync-Kern (§ 11) ist entschieden und verifiziert (§ 16.1, empirisch, nicht
+gesetzt) — kanonischer State ohne View, ein `EditorState` je View, Dokument-Weiterleitung,
+keine Selektions-Weiterleitung. Keine offene Variantenfrage vor Phase 1.
 
 ## Fertig heißt
 
-Alle Regeln aus `SPEC.md` § 5–10 erfüllt, T1–T106 grün, Benchmark-Ergebnis mit Zahlen und
+Alle Regeln aus `SPEC.md` § 5–10 erfüllt, T1–T108 grün, Benchmark-Ergebnis mit Zahlen und
 Falsifikationssatz (§ 15.4), API gehärtet (§ 12).
 
 ## Sprache

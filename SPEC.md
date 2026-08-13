@@ -74,18 +74,17 @@ Antwort auf „was bleibt übrig und was müssen wir verbiegen":
 | **Node-Projektion aus Überschriften/Frontmatter** | **gebaut** |
 | **Scope-/Grain-Rendering je View** | **gebaut** |
 | **visibleNode aus Scrollposition** | **gebaut** |
-| Presentation je View bei geteiltem State (V-S) | **gebogen** — `ViewPlugin` identifiziert seine View (§ 10.1) |
-| View-abhängige Guards bei geteiltem State (V-S) | **gebogen** — Transaktions-Annotationen statt Konfiguration |
+| Presentation und Guards je View | **nativ, direkt konfiguriert** — jede View hat ihren eigenen State (§ 11), kein Bend-Mechanismus nötig |
 
-Verbogen wird also ausschließlich in V-S, und nur an zwei Stellen. Alles Übrige ist entweder
-nativ oder liegt oberhalb der Engine. Das ist der Grund, warum die Wahl nicht als offen
-geführt wird.
+Nichts an der Engine muss verbogen werden — jede genutzte Fähigkeit ist entweder nativ oder
+liegt sauber oberhalb der Engine. Das ist der Grund, warum die Wahl nicht als offen geführt
+wird.
 
 ### 2.3 Falsifikation
 
-Die Engine-Wahl ist zurückzunehmen, wenn **beides** eintritt: die beiden Biegestellen aus
-§ 2.2 erweisen sich in V-S als untragbar **und** die Weiterleitungskosten von V-M sind bei
-Korpus L prohibitiv. Dann ist § 1.1 selbst zu prüfen, nicht die Engine.
+Die Engine-Wahl ist zurückzunehmen, wenn die Weiterleitungskosten des Sync-Kerns (§ 11) bei
+Korpus L prohibitiv sind **und** sich nicht durch Optimierung innerhalb des Modells lösen
+lassen. Dann ist § 1.1 selbst zu prüfen, nicht die Engine.
 
 ---
 
@@ -177,10 +176,9 @@ eingesetzte Fassung zu verifizieren). Das ist gebaute Logik, kein Nebenprodukt.
 in der `EditorView` — und ein State ohne View ist in CM6 normal. Die TrackedPositions liegen
 deshalb auf einem **session-eigenen State**, der so lange existiert wie die Session.
 
-**Variantenrelevanz:** In V-S ist das der eine geteilte State — Views hängen sich an und ab,
-sonst passiert nichts. In V-M braucht es dafür einen **kanonischen State ohne View**; hinge er
-an einer View, wäre deren Schließen ein Eigentümerwechsel im Betrieb. TrackedPositions gehören
-deshalb in Phase 1 und zählen beim Variantenvergleich mit (§ 11.4).
+Der kanonische State ohne View ist hierfür ebenso Pflicht wie für das Dokument selbst
+(§ 11.2) — hinge er an einer View, wäre deren Schließen ein Eigentümerwechsel im Betrieb.
+TrackedPositions gehören in Phase 1 (§ 16).
 
 ### 3.5 View-Zustand über Schließen und Wiederöffnen
 
@@ -304,7 +302,7 @@ nicht gäbe:
 | Scope, Presentation, Grain | View | unabhängig | unabhängig | unabhängig |
 | Scrollposition | View | unabhängig, **koppelbar** (opt-in) | unabhängig | unabhängig |
 | visibleNode, Find-Zustand | View | unabhängig | unabhängig | unabhängig |
-| Selektion | variantenabhängig | § 10 | § 10 | § 10 |
+| Selektion | View | unabhängig — nicht weitergeleitet (§ 11.2) | unabhängig | unabhängig |
 
 **S1** Textsynchronisation ist nicht abschaltbar und nicht scope-abhängig.
 **S2** Viewport- und Cursor-Kopplung ist opt-in je View-Paar, nur bei `identical` sinnvoll.
@@ -340,20 +338,17 @@ Jede Strukturänderung ist eine Textänderung (I2) und liegt auf der Timeline (I
 | **R6** | Eine Strukturänderung erzeugt genau einen Timeline-Eintrag, unabhängig von der Zahl kaskadierender Nodes. |
 | **R7** | Eine Kaskade, die das Schema verletzen würde, wird **vollständig** abgelehnt — kein Teilzustand, kein Timeline-Eintrag, Document unverändert. |
 
-### 7.3 Ablauf einer Struktur-Aktion (beide Varianten)
+### 7.3 Ablauf einer Struktur-Aktion
 
-Antwort auf „wie funktionieren `apply` und Undo, insbesondere in V-M":
+Antwort auf „wie funktionieren `apply` und Undo":
 
 ```
 1. Host ruft session.apply(action)                     — z. B. „Node X löschen"
 2. Session plant die Kaskade gegen Schema + Tree       — Verletzung → R7, Abbruch
 3. Plan wird zu genau einem ChangeSet verdichtet       — R6
-4. Anwendung:
-   V-S: ein Dispatch auf den geteilten State
-   V-M: Dispatch auf den kanonischen State (view-unabhängig!),
-        dann Weiterleitung
-        desselben ChangeSet an alle übrigen States,
-        in derselben Reihenfolge, in einem Durchlauf
+4. Dispatch auf den kanonischen State (view-unabhängig, § 11.2),
+   dann Weiterleitung desselben ChangeSet an alle View-States,
+   in derselben Reihenfolge, in einem Durchlauf
 5. Tree wird neu projiziert (I2)
 6. Scopes werden gegen den neuen Tree validiert        — R2/R3
 7. Relationen werden neu bestimmt                      — S3
@@ -362,13 +357,10 @@ Antwort auf „wie funktionieren `apply` und Undo, insbesondere in V-M":
 
 Undo läuft identisch mit dem invertierten `ChangeSet`; Schritte 5–7 wiederholen sich.
 
-**Kritisch für V-M:** Schritt 4 muss atomar über alle States sein — eine Teilweiterleitung
-hinterlässt divergierende Dokumente. Diese Fehlerklasse existiert in V-S nicht und ist ein
-Kriterium in § 11.4.
-
-**Kritisch für beide Varianten:** `EditorView.update` ist nicht reentrant (§ 11.1 Punkt 6) —
-der Weiterleitungs-/Fan-out-Code darf beim Durchlaufen der Views keinen weiteren Dispatch
-auslösen, unabhängig von der Variante.
+**Kritisch:** Schritt 4 muss atomar über alle View-States sein — eine Teilweiterleitung
+hinterlässt divergierende Dokumente. Zusätzlich ist `EditorView.update` nicht reentrant
+(§ 11.1 Punkt 5): der Weiterleitungscode darf beim Durchlaufen der Views keinen weiteren
+Dispatch auslösen.
 
 ---
 
@@ -474,7 +466,7 @@ timeline.push({ apply, revert, reveal? , label? })
 | **U11** | Das Aufdecken fremder Einträge liegt beim Host (`reveal`) — die Komponente kann nicht aufdecken, was sie nicht rendert. |
 | **U12** | Mehrere Sessions dürfen sich eine Timeline teilen. Undo bleibt global chronologisch. |
 | **U13** | Beide Betriebsarten sind zulässig: **verschränkt** (geteilte Timeline, Editor- und Host-Aktionen in einer Reihe) und **getrennt** (Timeline je Session). **Voreingestellt ist verschränkt.** |
-| **U14** | Verschränkung gilt **unabhängig von der Variante** — auch in V-S. Die CM6-eigene History ist dort ein *Primitiv*, das die äußere Timeline ansteuert: bei einem Texteintrag ruft sie CM6-Undo, bei einem fremden Eintrag dessen `revert`, **ohne** die CM6-History anzufassen. |
+| **U14** | Die CM6-eigene History ist ein *Primitiv*, das die äußere Timeline ansteuert: bei einem Texteintrag ruft sie CM6-Undo (auf dem kanonischen State, § 11.2), bei einem fremden Eintrag dessen `revert`, **ohne** die CM6-History anzufassen. |
 | **U15** | Damit U14 trägt, müssen Texteinträge der Timeline 1:1 und in Reihenfolge auf CM6-History-Schritte abbilden. Deshalb darf nichts sonst in die CM6-History schieben (U2). |
 | **U16** | Bei gemischtem Betrieb ist **jeder Undo-Eintrittspunkt an genau eine Timeline gebunden** — üblicherweise über die fokussierte Oberfläche. Kein Erraten, welcher Stack gemeint ist. |
 
@@ -556,99 +548,84 @@ erklärbaren Schutzmechanismen.
 
 ---
 
-## 11 · Varianten
+## 11 · Sync-Kern
 
-Zwei Umsetzungen desselben Modells, umschaltbar zur Laufzeit. Variantenspezifisch ist
-ausschließlich der Synchronisationskern.
+**Ein `EditorState` je View, ein kanonischer `EditorState` ohne View als Wahrheit —
+`ChangeSet`-Weiterleitung vom Kanon zu jeder View. Ein Stern, kein Netz, keine
+Selektions-Weiterleitung.**
 
-### 11.1 Grundlage
+Keine offene Variantenfrage mehr. Eine frühere Fassung stellte dieser Konstruktion einen
+geteilten `EditorState` (mehrere Views auf einem State) als gleichwertige Alternative
+gegenüber und wollte zwischen beiden messen. Das ist verworfen, aus zwei unabhängigen
+Gründen, die beide erst nach echtem Code sichtbar wurden:
+
+1. **CM6s eigenes Referenzbeispiel für mehrere Views** (`codemirror.net/examples/split`)
+   forwarded Dokumentänderungen zwischen unabhängigen States — es teilt keinen State.
+2. **Yjs' CM6-Anbindung** (`y-codemirror`) bindet ebenfalls **einen `EditorState` je View**
+   an ein gemeinsames CRDT-Dokument, nicht einen geteilten `EditorState`.
+
+Der naheliegende CM6-Weg für „mehrere Views, ein Dokument" ist unabhängige States mit
+Weiterleitung — ein geteilter State ist die Konstruktion **dagegen**, nicht der Normalfall,
+und die einzige Stärke, die er böte (kostenlos geteilte Selektion), war ohnehin nie eine
+Anforderung.
+
+### 11.1 Grundlage (verifiziert an CM6 6.43)
 
 1. `EditorState` ist unveränderlich und enthält Dokument, Selektion und Konfiguration.
-2. Eine `EditorView` rendert genau einen State; derselbe State darf mehreren Views übergeben
-   werden.
-3. `ViewPlugin` wird in der Konfiguration deklariert, aber **je `EditorView` instanziiert** —
-   Dekorationen und atomare Bereiche können auch bei geteiltem State je View abweichen.
-4. `changeFilter`, `transactionFilter` und `keymap` liegen auf State-Ebene — View-Bezug dort
-   nur über Transaktions-Annotationen.
-5. **`Text` ist eine persistente, unveränderliche Rope-Struktur.** Mehrere States können
-   beim Anlegen denselben `Text` per Referenz teilen (kein Kopieraufwand). Nach einer
-   Änderung erzeugt jeder State, der sie anwendet, sein eigenes neues Wurzelobjekt; nur
-   unveränderte Teilbäume bleiben strukturell geteilt — Kopieraufwand je Änderung ist
-   **O(log n)**, nicht O(n). Betrifft beide Varianten gleich.
-6. `EditorView.update` ist **nicht reentrant** — ein Aufruf während eines laufenden Updates
-   ist ein Fehler. Ein Fan-out-/Weiterleitungs-Koordinator darf beim Durchlaufen der Views
-   keinen weiteren Dispatch auslösen (z. B. aus einem `updateListener`, der reflexhaft
-   zurückschreibt). Gilt unabhängig davon, ob der Ziel-State geteilt ist oder nicht.
-7. Layout-Geometrie ist nur in einer separaten, per `requestAnimationFrame` geplanten
+2. Eine `EditorView` rendert genau einen State.
+3. `changeFilter`, `transactionFilter` und `keymap` liegen auf State-Ebene. Da jede View ihr
+   eigenes State-Objekt hat, konfiguriert jede View sie **direkt und unabhängig** — Guards,
+   die nur in `wysiwyg` gelten sollen, hängen schlicht nicht an der `source`-View-State.
+   Keine Transaktions-Annotation nötig, um View-Identität zu unterscheiden.
+4. **`Text` ist eine persistente, unveränderliche Rope-Struktur.** Der kanonische State und
+   jede View-State können denselben `Text` beim Erzeugen per Referenz teilen (kein
+   Kopieraufwand). Nach einer Änderung erzeugt jeder State, der sie anwendet, sein eigenes
+   neues Wurzelobjekt; nur unveränderte Teilbäume bleiben strukturell geteilt —
+   Kopieraufwand je Änderung ist **O(log n)**, nicht O(n).
+5. `EditorView.update` ist **nicht reentrant** — ein Aufruf während eines laufenden Updates
+   ist ein Fehler. Der Weiterleitungscode (§ 11.2, § 7.3) darf beim Durchlaufen der Views
+   keinen weiteren Dispatch auslösen.
+6. Layout-Geometrie ist nur in einer separaten, per `requestAnimationFrame` geplanten
    Messphase verfügbar; synchrones Messen während eines Updates ist ausgeschlossen (bestätigt
-   T13).
+   T13; Testkonsequenz in `SETUP.md`).
 
-Folge: **Parallele Views mit unterschiedlicher Presentation sind in beiden Varianten
-möglich.**
+### 11.2 Ablauf
 
-### 11.2 V-S — Single Instance
-
-Ein `EditorState`, N `EditorView`s.
+Kanonischer State ohne View ist die Wahrheit. Jede View-State wird **vom Kanon aus**
+fortgeschrieben, nie von einer anderen View-State aus (Ablauf im Detail: § 7.3).
 
 | | |
 | - | - |
-| Document | geteilt — Divergenz strukturell unmöglich |
-| Timeline | eine, ohne Zusatzcode |
-| Selektion | **geteilt** über alle Views |
-| Guards, Keymap | geteilt; View-Bezug über Annotationen |
-| Speicher | eine Textkopie |
-| Sync-Aufwand | keiner |
+| Document | je View; Weiterleitung vom Kanon aus, nie zwischen Views |
+| Timeline | zentral geführt, View-States delegieren |
+| Selektion | je View unabhängig — **nicht weitergeleitet**, keine Sonderbehandlung nötig |
+| Guards, Keymap | je View direkt konfiguriert (§ 11.1 Punkt 3) |
+| Berechnung | jede View-State berechnet ihre StateFields (Parsebaum, Dekorationen) eigenständig — Kosten skalieren mit der Zahl der Views, zu messen (§ 15) |
 
-**Zu prüfende Milderung:** Die State-Selektion folgt der fokussierten View; die letzte
-Cursorposition anderer Views wird als passive Dekoration gerendert. Ob das die
-`disjoint`-Schwäche entschärft, ist in Phase 1 zu klären (§ 16).
+Das ist der einzige strukturelle Kostenpunkt gegenüber einem (verworfenen) geteilten State:
+N-fache statt einfache Berechnung abgeleiteter StateField-Werte. Zu messen, nicht zu setzen.
 
-**Fan-out:** Ursprungs-View zuerst `update(trs)` (CodeMirror-Split). Bei
-`select.pointer` bekommen Geschwister denselben End-State per `setState` — nicht
-dieselbe Transaction, sonst schreibt CM6 den Caret in jede View und stiehlt den
-Fokus (G3). ViewPlugins überleben `setState` über den G1-WeakMap-Slot.
+### 11.3 Verifikation
 
-### 11.3 V-M — Multi Instance
+Drei Fragen, empirisch geprüft — Spike `spikes/phase-0/`, Tests
+`tests/behaviour/phase-0-gate.spec.ts` — statt gesetzt:
 
-Ein `EditorState` je View plus ein **kanonischer State ohne View**, `ChangeSet`-Weiterleitung, Timeline außerhalb mit einem Eigner.
+| # | Frage | Ergebnis |
+| - | ----- | -------- |
+| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden.** Presentation und Scope stehen in der View-Konfiguration, nicht im Document. `source` zeigt Marker, `wysiwyg` blendet sie per Replace/`atomicRanges` aus. Document-Strings bleiben nach einer Änderung gleich. |
+| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden.** Guards sitzen in einem `transactionFilter`, der nur an der wysiwyg-View-Konfiguration hängt. `source` hat ihn nicht — View-Identität braucht keine Annotation (§ 11.1 Punkt 3). |
+| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden.** Selektion wird nicht weitergeleitet. Tippen in A aktualisiert B's Document (Stringgleichheit); B's Caret bleibt unberührt. |
 
-| | |
-| - | - |
-| Document | je View; Weiterleitung nötig |
-| Timeline | zentral geführt, States delegieren |
-| Selektion | je View unabhängig |
-| Guards, Keymap | je View direkt konfiguriert |
-| Speicher | Textkopie × (Views **+ 1**) — der kanonische State ohne View zählt mit (§ 3.4) |
-| Sync-Aufwand | je Änderung über alle Views |
+Fällt eine dieser drei künftig um — etwa bei einer echten Regression —, ist **diese Sektion**
+zu revidieren, nicht ein Rückfall auf geteilten State, der nicht mehr Teil des Modells ist.
 
-### 11.4 Entscheidungskriterien
+### 11.4 Live-Kollaboration (post-MVP, nicht gebaut)
 
-| Frage | Kippt zugunsten |
-| ----- | --------------- |
-| Geteilte Selektion bei `identical` — brauchbar oder störend? | brauchbar → V-S |
-| Geteilte Selektion bei `disjoint` — Cursor liegt zwangsläufig außerhalb einer View. Tragbar, ggf. mit Milderung (11.2)? | tragbar → V-S |
-| Bleiben annotationsgeführte Guards lesbar, oder entsteht Sonderfall-Häufung? | lesbar → V-S |
-| Wiegt strukturelle Divergenzfreiheit schwerer als direkte Konfigurierbarkeit? | ja → V-S |
-| Bleibt die Weiterleitung (§ 7.3, Schritt 4) bei n Views und Korpus L im Latenzbudget? | nein → V-S |
-| Ist Live-Kollaboration absehbar (§ 11.5)? | ja → V-S |
-
-`disjoint` ist der Härtefall für V-S, atomare Weiterleitung der für V-M.
-
-### 11.5 Live-Kollaboration (post-MVP, nicht gebaut)
-
-Nicht Gegenstand dieser Fassung (§ 1), aber die Varianten verhalten sich unterschiedlich, und
-das gehört in die Bewertung (§ 11.4).
-
-| | |
-| - | - |
-| **V-S** | Trivial. Die Collab-Erweiterung hängt am einen State; Remote-Änderungen werden dorthin dispatched, alle Views sehen sie. Collab ist orthogonal zur Zahl der Views. |
-| **V-M** | Möglich, aber eine Stufe schwerer. Das Problem ist **Rebasing**: trifft eine fremde Änderung ein, während unbestätigte lokale Änderungen vorliegen, werden die lokalen umgeschrieben — die View-States haben sie aber schon angewandt. Der Synchronisationskern muss dann nicht nur weiterleiten, sondern **Korrekturen nachreichen**, inklusive Selektionsabbildung je View. Fehler dort erzeugen stille Divergenz. |
-
-**Notiz zu einem dritten Weg:** Mit einem CRDT (etwa Yjs) ließe sich in V-M jeder View-State an
-dasselbe geteilte Dokument binden — der Synchronisationskern entfiele, das CRDT wäre er. Das
-verschiebt allerdings die Wahrheit von „ein Markdown-String, der uns gehört" auf „ein
-CRDT-Dokument, das wir nach Markdown projizieren" und berührt damit § 1.1. Andere Architektur,
-nicht andere Umsetzung — hier nur festgehalten, nicht verfolgt.
+Nicht Gegenstand dieser Fassung (§ 1), aber ein weiterer Beleg für die getroffene Wahl: Ein
+CRDT (Yjs) bindet sich pro View an ein gemeinsames Dokument — genau das Muster, das dieser
+Sync-Kern bereits hat (State je View, ein gemeinsamer Kanon). Der Weiterleitungscode aus
+§ 11.2 wäre der Teil, der später durch eine Yjs-Bindung ersetzt oder ergänzt würde; an
+Guards, Presentation und der Je-View-Konfiguration ändert sich dabei nichts.
 
 ---
 
@@ -735,7 +712,6 @@ beide gleichzeitig beobachtbar sind.
 
 | Element | Zweck |
 | ------- | ----- |
-| Variantenschalter | V-S ⇄ V-M zur Laufzeit |
 | Scroll-Owner-Log je View | letzte Ursache im Klartext — macht I4 prüfbar |
 | Scroll-Lock je View | pinnt die Position, damit Tests nachweisen, dass kein anderer Owner sie ändert |
 | Relations-Anzeige | aktuelle Relation aller View-Paare (§ 6.1) |
@@ -754,13 +730,9 @@ E2E-Tests lösen Zustände hierüber aus statt über Zeigergesten — Voraussetz
 
 ## 14 · Testmatrix
 
-Verhaltenstests, **variantenunabhängig formuliert — sie laufen unverändert gegen V-S und
-V-M**. Das gilt ausdrücklich auch für Scope- und Grain-Tests: Scope und Grain sind
-Modellbegriffe (§ 3), keine Eigenschaften einer Variante. Einzige Ausnahme: T-V\*.
-
-Unit-Tests sind zusätzlich und variantenspezifisch (V-M: Weiterleitung und
-Selektionsabbildung; V-S: Annotationsfilter und View-Zuordnung im `ViewPlugin`). Kein
-Testfall darf auf Zeit warten (I5).
+Verhaltenstests gegen den einen Sync-Kern (§ 11) — keine Variantenunterscheidung mehr nötig.
+Unit-Tests decken zusätzlich die Weiterleitungsmechanik selbst ab (§ 11.2). Kein Testfall
+darf auf Zeit warten (I5).
 
 ### Scrollposition
 
@@ -903,7 +875,7 @@ Testfall darf auf Zeit warten (I5).
 | T104 | Ungültige TrackedPosition wird nicht automatisch freigegeben; erst `release` entfernt sie (TP4/TP5). |
 | T105 | `replaceDocument` meldet alle TrackedPositions als ungültig, entfernt aber keine (TP8/U7). |
 | T106 | TrackedPositions werden auch dann abgebildet, wenn **keine einzige View** montiert ist (§ 3.4). |
-| T91 | Verschränkte Timeline in **V-S**: Undo eines fremden Eintrags ruft dessen `revert` und lässt die CM6-History unangetastet; der nächste Undo trifft den davor liegenden Texteintrag (U14/U15). |
+| T91 | Verschränkte Timeline: Undo eines fremden Eintrags ruft dessen `revert` und lässt die CM6-History unangetastet; der nächste Undo trifft den davor liegenden Texteintrag (U14/U15). |
 
 ### Widgets
 
@@ -916,20 +888,12 @@ Testfall darf auf Zeit warten (I5).
 | T55 | Feld leeren erzeugt gültiges Markdown. |
 | T56 | Fokus im Widget stiehlt der Text-View den Cursor nicht (W5). |
 
-### Variantenverhalten
-
-Diese beiden Fälle **schreiben fest, sie bewerten nicht**. Sie sind je Variante mit
-unterschiedlicher Erwartung hinterlegt und dienen als Beobachtungsgrundlage für § 11.4.
+### Selektionsunabhängigkeit
 
 | # | Fall |
 | - | ---- |
-| **T-V1** | Relation `identical`: Cursor in View A setzen. V-S — View B zeigt denselben Cursor. V-M — View B behält ihren eigenen. Erwartungswert je Variante fixiert. |
-| **T-V2** | Relation `disjoint`: Cursor in View A setzen. V-S — die geteilte Selektion liegt außerhalb der Range von B; festgehalten wird, was B dann darstellt und ob eine Bedienung von B den Cursor unerwartet fortbewegt. V-M — B unberührt. **Härtefall**; ergibt zusammen mit der Milderung aus § 11.2 die Antwort auf § 11.4, Frage 2. |
-
-**Ist hier etwas zu entscheiden?** Für den Phase-1-Default nein: G3 hat unabhängige Selektion
-festgelegt (O7). T-V1/T-V2 bleiben die Beobachtungsfälle, falls V-S je gebaut wird — dann
-ohne und mit Milderung (§ 11.2), sonst würde eine Variante verworfen, deren einfachste
-Verbesserung nie probiert wurde.
+| T107 | Relation `identical`: Cursor in View A setzen. View B behält ihren eigenen Cursor — Selektion ist nie geteilt, auch nicht bei gleichem Scope (§ 11.2, G3). |
+| T108 | Relation `disjoint`: Cursor in View A setzen. View B vollständig unberührt (§ 11.3, G3). |
 
 ---
 
@@ -980,11 +944,11 @@ Komponente und darf keine Regel aus § 6 verletzen.
 | Eingabelatenz je View-Konfiguration | Kernfrage der Synchronisation |
 | Zeit bis interaktiv | Kosten des Gesamtdokuments |
 | Sprungzeit zu entfernter Node | Viewport-Kosten bei L |
-| Speicher je Variante, Größe und n | V-M skaliert mit n, V-S nicht |
+| Speicher/Berechnung je Größe und n | wächst mit n (N-fache StateField-Berechnung, § 11.2) — Falsifikationsgrenze (§ 2.3), kein Vergleichswert |
 | Undo-Latenz über Node-Grenzen | U1 unter Last |
 | Suchlaufzeit, je Modus | § 10.1 unter Last |
 | Latenz einer kaskadierenden Strukturänderung | R6/§ 7.3 unter Last |
-| Weiterleitungsdauer über alle States (nur V-M) | § 7.3 Schritt 4 |
+| Weiterleitungsdauer über alle View-States | § 7.3 Schritt 4 |
 
 ### 15.4 Ergebnis
 
@@ -995,68 +959,44 @@ welchem n die Empfehlung kippt.
 
 ## 16 · Phasen
 
-**Vorbemerkung zur Reihenfolge.** Ursprünglich sollte Phase 0 entscheiden, ob ein geteilter
-`EditorState` (V-S) trägt. Das Tor hat diese Konstruktion **nicht** mehr als Anforderung.
-Begründung: I1 verlangt ein Session-Document, keine geteilte CM6-Selektion. Selektion ist
-`EditorSelection` (Anker/Head im State). Sie mit dem State zu teilen ist eine Nebenwirkung
-von V-S, kein Produktziel — und sie ist der Härtefall bei `disjoint` (§ 11.4).
-
-Phase 0 prüft deshalb drei **produktseitige** Lasten, ohne einen geteilten `EditorState`
-vorauszusetzen. Der Spike beantwortet sie mit einem `EditorState` je View und Weiterleitung
-nur der Document-`ChangeSet`s (CodeMirror-Split). V-S bleibt in § 11.2 dokumentiert, ist
-aber nicht durch das Tor gedeckt und nicht Phase-1-Default.
-
-Das Messbudget in Phase 2 (§ 16.2) bleibt absolut: die gewählte Konstruktion muss die
-Budgets halten, nicht eine ungebauten Alternative schlagen.
+**Zum Sync-Kern (§ 11) gibt es keine offene Variantenfrage mehr** — kanonischer State ohne
+View, ein `EditorState` je View, Dokument-Weiterleitung, keine Selektions-Weiterleitung.
+Empirisch geprüft (§ 11.3), nicht gesetzt. Die Phasen bauen entsprechend in einem Zug, ohne
+Torstelle vor dem ersten Anwendungscode.
 
 | Phase | Inhalt | Ergebnis |
 | ----- | ------ | -------- |
-| **0** | **Risikotor** (§ 16.1) — Presentation, Guards, Selektionsunabhängigkeit; ohne geteilten `EditorState` | schriftliches Bestanden/Durchgefallen je Punkt |
-| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — CM6-Anbindung wie der Spike: ein `EditorState` je View, nur Document-Änderungen weiterleiten. Keine Selektions-Milderung (§ 11.2) | T1–T37, T57–T63, T83–T106 grün; T-V1/T-V2 mit der Spike-Erwartung (Selektion je View) |
-| **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Budget verfehlt (B2), kein automatischer Variantenwechsel |
+| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (kanonischer State, Dokument-Weiterleitung, keine Selektions-Weiterleitung) | T1–T37, T57–T63, T83–T108 grün |
+| **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
 | **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig, strukturelle Listenansicht | T38–T56, T64–T82 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
-### 16.1 Risikotor (Phase 0)
+### 16.1 Verifikation des Sync-Kerns
 
-Drei Fragen, in ein bis zwei Tagen beantwortbar. Ein geteilter `EditorState` ist **keine**
-Tor-Anforderung.
+Drei Fragen, empirisch beantwortet (§ 11.3) statt als Tor vor Phase 1 gesetzt:
 
-| # | Frage | Bestanden, wenn |
-| - | ----- | --------------- |
-| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | `source` und `wysiwyg` gleichzeitig; Node-A vs. Node-B; Document-Strings nach einer Änderung gleich; Marker nur in `source` sichtbar |
-| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, in einem Filter, ohne Tasten-Sonderfall? | `#` in wysiwyg → escaped; mehrzeiliges Einfügen ist eine maskierte Änderung; partielles Marker-Delete expandiert; `#` in `source` bleibt unmaskiert |
-| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | Selektion in A ändert den Caret von B nicht; Tippen in A aktualisiert B's Document (Stringgleichheit), B's Caret bleibt im eigenen Zweig (Abbildung durch den `ChangeSet` ist erlaubt, Übernahme von A's Selektion nicht) |
+| # | Frage | Ergebnis |
+| - | ----- | -------- |
+| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden** — Details § 11.3 |
+| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden** — Details § 11.3 |
+| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden** — Details § 11.3 |
 
-**Fällt einer durch**, ist die Spike-Konstruktion untragbar — dann ist § 16.1 zu revidieren,
-nicht still auf V-S zurückzufallen.
-
-#### Urteil (Spike `spikes/phase-0/`, Tests `tests/behaviour/phase-0-gate.spec.ts`)
-
-| # | Ergebnis | Begründung |
-| - | -------- | ---------- |
-| **G1** | **Bestanden** | Ein `EditorState` je View. Presentation und Scope stehen in der View-Konfiguration (ViewPlugin-Closure), nicht im Document. `source` zeigt Marker, `wysiwyg` blendet sie per Replace/`atomicRanges` aus; fremde Zweige per Line-Decoration. Document-Strings bleiben gleich. Hinweis: Replace über Zeilenumbrüche darf in CM6 nicht aus einem ViewPlugin kommen — Line-Decorations reichen für den Scope-Beweis. |
-| **G2** | **Bestanden** | L1–L3 sitzen in einem `transactionFilter` nur auf dem wysiwyg-State. Source hat den Filter nicht — View-Identität braucht keine Annotation. Input/Paste/Delete setzen `userEvent`; kein Tasten-Sonderfall. |
-| **G3** | **Bestanden** | Selektion wird nicht weitergeleitet. `setSelection`/Tippen in A lässt B's Caret im eigenen Zweig; B's Document folgt. Keine Milderung, kein passiver Caret. |
-
-**Gesamturteil: Phase 0 bestanden ohne geteilten EditorState.** Phase 1 folgt für die
-CM6-Anbindung der Spike-Konstruktion. `src/sync/shared-state/` ist nicht durch das Tor
-gedeckt. V-S bleibt in § 11.2 dokumentiert.
+Belege: Spike `spikes/phase-0/`, Tests `tests/behaviour/phase-0-gate.spec.ts`. Fällt eine der
+drei Fragen bei einer echten Regression künftig um, ist § 11 zu revidieren.
 
 ### 16.2 Warum das Budget absolut sein muss
 
-Ohne V-M gibt es keine Vergleichszahl. Ein Messwert allein sagt nichts — „38 ms" ist weder
-gut noch schlecht ohne Maßstab. Deshalb:
+Ein Messwert allein sagt nichts — „38 ms" ist weder gut noch schlecht ohne Maßstab. Deshalb:
 
 | # | Regel |
 | - | ----- |
 | **B1** | Die Budgets je Messgröße aus § 15.3 werden **vor** dem ersten Lauf festgelegt und im Repository festgeschrieben. |
 | **B2** | Nachträgliches Anheben eines Budgets, weil der Messwert es verfehlt, ist unzulässig. Verfehlt heißt verfehlt. |
-| **B3** | Verfehlt die Phase-1-Konstruktion (ein `EditorState` je View, Document-Weiterleitung) ein Budget bei Korpus L, gilt das Budget als verfehlt. Ein nachträglicher Wechsel auf geteilten EditorState ist dadurch nicht angeordnet. |
-| **B4** | V-S (§ 11.2) bleibt dokumentierte Alternative, nicht Phase-1-Default und nicht durch das Tor gedeckt. § 11.3 beschreibt die gewählte CM6-Anbindung; § 11.5 bleibt gültig. |
+| **B3** | Verfehlt der Sync-Kern ein Budget bei Korpus L, ist das ein benannter Befund — welche Messgröße, bei welchem n — der innerhalb des Modells gelöst wird (Optimierung der StateField-Berechnung, § 11.2). Kein Rückfall auf einen geteilten State: der ist nicht mehr Teil des Modells (§ 2.3 Falsifikation betrifft die Engine-Wahl, nicht den Sync-Kern). |
+| **B4** | Ein verfehltes Budget ist damit ein Arbeitsauftrag, kein Auslöser für eine zweite Architektur. |
 
-Damit ist die Entscheidung weiterhin belegt statt gesetzt — der Beleg ist das Budget der
-gewählten Konstruktion, nicht ein Zweitbau.
+Das Budget bleibt der Beleg, dass die Entscheidung hält — nicht mehr im Vergleich zu einer
+zweiten Konstruktion, sondern gegen sich selbst.
 
 ---
 
@@ -1070,7 +1010,7 @@ gewählten Konstruktion, nicht ein Zweitbau.
 | O4 | Navigations-Oberfläche mitgeliefert? | nein — Baumdaten, `navigateTo` und Auswahl-API ja, Oberfläche nein |
 | O5 | Obergrenze der Views | keine im Modell; Benchmark nach § 15.2 |
 | O6 | Welche View speist `session.visibleNode` | die fokussierte |
-| O7 | Selektionsverhalten | **entschieden (G3):** Selektion je View, nicht geteilt. Milderung § 11.2 entfällt für den Phase-1-Default. T-V1/T-V2 bleiben Beobachtung, falls V-S je gebaut wird. |
+| O7 | Selektionsverhalten | **entschieden (§ 11.3, G3):** Selektion je View, nie geteilt. Kein Sonderfall, keine Milderung nötig — es gibt nichts zu vermitteln. |
 | O8 | Nehmen Frontmatter-Formularfelder an der Textsuche teil? | **entschieden: nein** (FM7) — als Pill gerenderte Werte dagegen ja (P5) |
 | O9 | Rendert `wysiwyg` Überschriftentitel und Chip-Beschriftungen als echten Text? | **entschieden: ja**, erzwungen durch F7 — Bauvorgabe, keine offene Frage |
 | **O10** | Abweichende Reihenfolgen (Chronologie, Achsenreihenfolge) | **entschieden: Host-Sache.** Reine Präsentation, live über `subscribe`, gespeist aus `session.readNodes(ids)`. Kein Projektionsmodell in der Komponente — Dekorationen können Text nicht umordnen, eine editierbare Umordnung erzwänge je View ein permutiertes Dokument. Annotationen dorthin über TrackedPosition (§ 3.4). |

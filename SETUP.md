@@ -27,10 +27,9 @@ src/
     dirty.ts               ownRange / subtreeRange (D1–D5)
     search.ts              Projektion, Modi, Trefferklassen
     structure.ts           Kaskadenplanung, R7-Ablehnung
-  sync/
-    shared-state/          V-S
-    per-view-state/        V-M  (leer bis Auslöser B3 greift)
-    index.ts               createSync(variant)
+  sync/                    Sync-Kern (§ 11): kanonischer State, Weiterleitung
+    engine.ts              ein EditorState je View, Dokument-Weiterleitung (§ 11.2)
+    index.ts               createSync()
   view/                    CM6-Adapter, DOM
     presentation/          source | wysiwyg
     guards/                L1–L6, FM1–FM2
@@ -43,10 +42,9 @@ harness/                   Testoberfläche, wird nicht veröffentlicht
   inspector.ts             Instrumentierung (§ 13.3)
 
 tests/
-  behaviour/               T1–T106 — laufen gegen jede vorhandene Variante
+  behaviour/               T1–T108
   unit/
-    shared-state/          variantenspezifisch
-    per-view-state/
+    sync/                  Sync-Kern-Mechanik (§ 11.2)
   fixtures/corpus.ts       Generator S/M/L, fester Seed
 
 bench/
@@ -59,9 +57,6 @@ scripts/
   check-no-waiting.mjs
   check-export-surface.mjs
 ```
-
-**`per-view-state/` existiert von Anfang an als leeres Verzeichnis mit README.** Es hält die
-Rückfalllinie sichtbar (SPEC B4) — ein gelöschter Ordner wird vergessen, ein leerer nicht.
 
 ---
 
@@ -92,28 +87,7 @@ gestrichen wird, schlägt der Test an, der sie noch behauptet.
 
 ---
 
-## 3 · Variantenmatrix
-
-Verhaltenstests holen die Session über eine Fabrik, die die Variante aus der Umgebung liest:
-
-```ts
-const session = createTestSession()   // liest EDITOR_VARIANT
-```
-
-```
-npm run test:behaviour                 # alle vorhandenen Varianten
-EDITOR_VARIANT=shared-state npm run test:behaviour
-```
-
-| # | Regel |
-| - | ----- |
-| M1 | Ein Verhaltenstest darf die Variante **nicht** kennen. Wer `EDITOR_VARIANT` im Test liest, gehört nach `tests/unit/`. |
-| M2 | Ausnahme sind `T-V1`/`T-V2`: sie hinterlegen je Variante eine eigene Erwartung und sind als einzige entsprechend markiert. |
-| M3 | Existiert eine Variante nicht, wird ihr Lauf **übersprungen und gemeldet** — nicht stillschweigend weggelassen. |
-
----
-
-## 4 · Mechanische Prüfungen
+## 3 · Mechanische Prüfungen
 
 Jede erzwingt eine Invariante, die sonst erodiert.
 
@@ -129,7 +103,7 @@ Interna werden zu Vertrag, sobald jemand sie benutzt.
 
 ---
 
-## 5 · Testebenen und Agenten-Budget
+## 4 · Testebenen und Agenten-Budget
 
 Aus dem Marli-Vorgehen übernommen, weil es sich dort bewährt hat.
 
@@ -139,7 +113,7 @@ Aus dem Marli-Vorgehen übernommen, weil es sich dort bewährt hat.
 | **2 — Zweig** | Teilaufgaben fertig | `npm run typecheck` + `npm run lint` |
 | **3 — Tor** | vor Merge / CI | `npm run verify` |
 
-`verify` = `typecheck` + `lint` + die vier Prüfungen aus § 4 + `test:unit` + `test:behaviour`.
+`verify` = `typecheck` + `lint` + die vier Prüfungen aus § 3 + `test:unit` + `test:behaviour`.
 
 > **Agenten führen ausschließlich Ebene 1 aus.** Nicht `verify`, nicht die vollen Suiten.
 > Deren Ausgabe ist lang, ihre Laufzeit auch, und der Erkenntnisgewinn gegenüber dem
@@ -147,7 +121,7 @@ Aus dem Marli-Vorgehen übernommen, weil es sich dort bewährt hat.
 
 ---
 
-## 6 · E2E über Kommandos, nicht über Gesten
+## 5 · E2E über Kommandos, nicht über Gesten
 
 `SPEC.md` § 13.4 ist keine Bequemlichkeit, sondern die Voraussetzung für I5: Zeigergesten
 brauchen Warten auf Layout, Kommandos nicht.
@@ -160,7 +134,7 @@ brauchen Warten auf Layout, Kommandos nicht.
 
 ---
 
-## 7 · Benchmark
+## 6 · Benchmark
 
 | # | Regel |
 | - | ----- |
@@ -171,7 +145,7 @@ brauchen Warten auf Layout, Kommandos nicht.
 
 ---
 
-## 8 · Agentenführung
+## 7 · Agentenführung
 
 **Für Claude Code** gibt es keine bedingte Regelladung — `AGENTS.md` muss alles Wesentliche
 selbst tragen und bleibt deshalb kurz. Lange Regelwerke werden nicht besser befolgt, sondern
@@ -182,7 +156,7 @@ schlechter.
 | Datei | `globs:` | Inhalt |
 | ----- | -------- | ------ |
 | `.cursor/rules/core.mdc` | `src/core/**` | I8, keine Engine-Importe, keine Domänenbegriffe |
-| `.cursor/rules/sync.mdc` | `src/sync/**` | Variantengrenze, § 7.3 Ablauf, Atomarität |
+| `.cursor/rules/sync.mdc` | `src/sync/**` | § 7.3 Ablauf, Atomarität, Reentrancy (§ 11.1 Punkt 5) |
 | `.cursor/rules/view.mdc` | `src/view/**` | I4 Scroll-Owner, Guards an einer Stelle (I6) |
 | `.cursor/rules/tests.mdc` | `tests/**` | `@covers` Pflicht, kein Warten auf Zeit, Kommandos statt Gesten |
 
@@ -204,15 +178,15 @@ schlechter.
 
 ---
 
-## 9 · Reihenfolge des Aufbaus
+## 8 · Reihenfolge des Aufbaus
 
 | Schritt | Inhalt |
 | ------- | ------ |
-| 1 | `SPEC.md`, `AGENTS.md`, `SETUP.md`, Lizenz (SPEC O2), leeres `per-view-state/` |
+| 1 | `SPEC.md`, `AGENTS.md`, `SETUP.md`, Lizenz (SPEC O2) |
 | 2 | Tooling: TypeScript, Vitest, Playwright, Lint — ohne Anwendungscode |
-| 3 | Die vier Prüfskripte aus § 4, **bevor** Anwendungscode entsteht |
+| 3 | Die vier Prüfskripte aus § 3, **bevor** Anwendungscode entsteht |
 | 4 | Korpusgenerator + `BUDGETS.json` |
-| 5 | Risikotor G1–G3 (SPEC § 16.1) |
+| 5 | Sync-Kern (SPEC § 11.2) gegen G1–G3 (SPEC § 16.1) regressionsgeprüft — bereits einmal bestanden, hier erneut belegt, nicht neu verhandelt |
 | 6 | Phase 1 nach SPEC § 16 |
 
 Schritt 3 vor Schritt 6 ist Absicht: Prüfungen, die erst nachträglich eingeführt werden,

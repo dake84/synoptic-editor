@@ -7,11 +7,12 @@ your own host.
 
 ## Status
 
-**Phase 0 risk gate passed** (G1–G3 — see `SPEC.md` § 16.1): one `EditorState` per view,
-document-only forwarding, independent selections. Evidence lives in `spikes/phase-0/` and
-`tests/behaviour/phase-0-gate.spec.ts`. Next is Phase 1 against the behaviour matrix, with
-the CM6 binding following the spike. Shared `EditorState` (V-S) is not gate-endorsed. Not a
-usable package yet.
+**Sync architecture verified** (G1–G3 — see `SPEC.md` § 16.1): a canonical `EditorState`
+with no view, one `EditorState` per view, document-only forwarding, no selection forwarding.
+Evidence lives in `spikes/phase-0/` and `tests/behaviour/phase-0-gate.spec.ts`; the same
+pattern CodeMirror's own split-view example and Yjs' `y-codemirror` binding use — a shared
+`EditorState` across views was considered and dropped (`SPEC.md` § 11). The production sync
+engine is being rebuilt against this verified shape. Not a usable package yet.
 
 The full requirements live in [`SPEC.md`](./SPEC.md).
 
@@ -40,9 +41,8 @@ A `Session` holds one `Document` (a markdown string), a `Tree` projected from it
 anything that must survive edits — scroll, caret, host annotations. Any number of `View`s
 attach to a session, each with its own scope (which node, how much of its subtree), its own
 presentation (source or wysiwyg), and its own scroll position — synchronized on the document,
-independent on everything else. Two architectures for *how* views share that one document —
-single shared editor state vs. one state per view — are being evaluated against each other
-before either is built out; see `SPEC.md` § 11 and § 16.
+independent on everything else. Underneath, each view is backed by its own CM6 `EditorState`,
+forwarded from a canonical state the session owns — see `SPEC.md` § 11.
 
 ## License
 
@@ -50,5 +50,5 @@ MIT — see [`LICENSE`](./LICENSE).
 
 ## Contributing
 
-Phase 0 is closed; Phase 1 is the next build slice. If you're interested, open an issue;
-please read `SPEC.md` and `AGENTS.md` before proposing anything.
+The sync architecture is settled; the engine implementing it is being rebuilt. If you're
+interested, open an issue; please read `SPEC.md` and `AGENTS.md` before proposing anything.
