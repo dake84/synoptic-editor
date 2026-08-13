@@ -8,5 +8,5 @@ alwaysApply: false
 
 - **I4:** Every scroll change has exactly one owner and a named `cause`. Prefer making `cause` a required parameter.
 - Guards (L1–L6, FM1–FM2) are defined and enforced in **one** place (**I6**, **L6**). No second filter that re-implements the same rule.
-- In V-S, view-dependent behaviour uses transaction annotations — not a second state copy or presentation-in-state.
+- View-dependent behaviour is configured **on that view's EditorState** (SPEC § 11.1.3). No transaction annotation to distinguish views.
 - Presentation (`source` | `wysiwyg`) must not invent markdown that is invalid in `source` (**I9**).

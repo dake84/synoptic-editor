@@ -101,7 +101,7 @@ lassen. Dann ist § 1.1 selbst zu prüfen, nicht die Engine.
 | **subtreeRange(n)** | `ownRange(n)` einschließlich aller Nachkommen. |
 | **View** | Eine Darstellung. Hat Scope, Presentation, Grain, Scroll, Find-Zustand. |
 | **Scope** | Node-Id **plus Include-Modus**: `own` oder `subtree`. |
-| **renderRange(v)** | Der Bereich, den View `v` rendert: `ownRange(scope)` bei `include: 'own'`, sonst `subtreeRange(scope)`. |
+| **renderRange(v)** | Der Bereich, den View `v` rendert: `ownRange(scope)` bei `include: 'own'`, sonst `subtreeRange(scope)`. **`to` ist exklusiv:** die letzte editierbare Position der View ist `to - 1` (bzw. `to`, wenn `to` das Dokumentende ist). Ein Insert *bei* `to` ist das erste Zeichen der nächsten Node — bei einer ATX-Überschrift zerstört das die Marker-Zeile. |
 | **Session** | Hält Document, Tree, Baseline, View-Register, Schema, TrackedPositions; nutzt eine Timeline. |
 | **Timeline** | Chronologische Folge rücknehmbarer Einträge. Injizierbar (§ 9.1). |
 | **TrackedPosition** | Stabile, mitwandernde Marke auf einer Position oder einem Bereich (§ 3.4). |
@@ -371,7 +371,7 @@ Dispatch auslösen.
 | # | Regel |
 | - | ----- |
 | **L1** | Strukturmarker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. |
-| **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). |
+| **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. |
 | **L3** | Mehrzeiliges Einfügen wird in einem Schritt maskiert und in einem Schritt zurückgenommen. |
 | **L4** | Überschriftentext bleibt in `wysiwyg` immer editierbar, unabhängig von `policy.structureEditingInWysiwyg`. |
 | **L5** | Programmatische Änderungen umgehen die Sperren gezielt (Widgets, API, Undo). |
@@ -588,6 +588,17 @@ Anforderung.
 6. Layout-Geometrie ist nur in einer separaten, per `requestAnimationFrame` geplanten
    Messphase verfügbar; synchrones Messen während eines Updates ist ausgeschlossen (bestätigt
    T13; Testkonsequenz in `SETUP.md`).
+7. **`Decoration.replace({ block: true })` ist standardmäßig inclusive** an beiden Seiten.
+   Ein Hide der Nachbar-Range schluckt sonst den Caret am Scope-Ende — Tippen in A landet
+   in B. Scope-Hide braucht `inclusiveStart: false, inclusiveEnd: false`.
+8. **Scope-Offsets sind eine Projektion**, keine eingefrorene Range. Nach jeder Dokumentänderung
+   neu aus dem Document bestimmen (oder durch den `ChangeSet` abbilden) — sonst zeigt Hide
+   auf die falsche Stelle.
+9. **L2 lebend:** `transactionFilter`, der `#` zu `\#` umschreibt, kämpft gegen das bereits
+   ins DOM geschriebene Zeichen und maskiert den Maskierungs-Backslash mit. Lebende Eingabe
+   fängt `EditorView.inputHandler` ab (ein Dispatch, `filter: false`); programmatisches
+   `state.update` bleibt der `transactionFilter`. Die Maskierungsregel selbst liegt in
+   einer Funktion (I6, L6).
 
 ### 11.2 Ablauf
 
@@ -608,13 +619,14 @@ N-fache statt einfache Berechnung abgeleiteter StateField-Werte. Zu messen, nich
 ### 11.3 Verifikation
 
 Drei Fragen, empirisch geprüft — Spike `spikes/phase-0/`, Tests
-`tests/behaviour/phase-0-gate.spec.ts` — statt gesetzt:
+`tests/unit/spike/g-questions.test.ts` und `tests/behaviour/phase-0-gate.spec.ts` —
+statt gesetzt:
 
 | # | Frage | Ergebnis |
 | - | ----- | -------- |
-| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden.** Presentation und Scope stehen in der View-Konfiguration, nicht im Document. `source` zeigt Marker, `wysiwyg` blendet sie per Replace/`atomicRanges` aus. Document-Strings bleiben nach einer Änderung gleich. |
-| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden.** Guards sitzen in einem `transactionFilter`, der nur an der wysiwyg-View-Konfiguration hängt. `source` hat ihn nicht — View-Identität braucht keine Annotation (§ 11.1 Punkt 3). |
-| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden.** Selektion wird nicht weitergeleitet. Tippen in A aktualisiert B's Document (Stringgleichheit); B's Caret bleibt unberührt. |
+| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden** (nach Nacharbeit am Spike). Kanon ohne View; je View ein State; Document-Strings gleich, Marker bleiben im String. Scope-Ranges werden nach jeder Änderung neu projiziert (§ 11.1.8). Hide mit `inclusiveStart/End: false` (§ 11.1.7). Insert am letzten Zeichen von A (`to - 1`) bleibt in A; B zeigt es nicht. Select-All-Copy aus A ist auf Alpha geclippt, enthält nicht `beta body` (Clipboard ist nicht dasselbe wie Hide — eigener Handler, eine Stelle). |
+| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden** (nach Nacharbeit). Filter/Handler nur auf der wysiwyg-Konfiguration. Source lässt `#` durch. **Lebend:** vier `#`-Tasten → `\#\#\#\#`, nicht `\\####`. Dazu `inputHandler` + `filter: false` (§ 11.1.9, L2). Programmatisch maskiert der `transactionFilter` in einem Durchgang (L3). L1 erfasst den ganzen Marker. Keine View-Id-Annotation. |
+| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden.** Selektion wird nicht weitergeleitet. Selektions-Transaktion in A: B's Caret numerisch unverändert. Tippen in A (lebend und programmatisch): Document-Strings gleich; B's Caret wird durch den `ChangeSet` abgebildet, nie durch A's Selektion ersetzt. |
 
 Fällt eine dieser drei künftig um — etwa bei einer echten Regression —, ist **diese Sektion**
 zu revidieren, nicht ein Rückfall auf geteilten State, der nicht mehr Teil des Modells ist.
@@ -973,16 +985,19 @@ Torstelle vor dem ersten Anwendungscode.
 
 ### 16.1 Verifikation des Sync-Kerns
 
-Drei Fragen, empirisch beantwortet (§ 11.3) statt als Tor vor Phase 1 gesetzt:
+Drei Fragen, empirisch beantwortet (§ 11.3) statt als Tor vor Phase 1 gesetzt.
+Belege: Spike `spikes/phase-0/` (Stern: Kanon ohne View, ein State je View, `ChangeSet`
+nur vom Kanon aus). Tests: `tests/unit/spike/g-questions.test.ts` (ohne DOM) und
+`tests/behaviour/phase-0-gate.spec.ts` (lebende `EditorView`, Tastatur nicht nur
+`state.update` — die drei ersten Unit-only-Belege haben G1e/G2b nicht gesehen).
 
 | # | Frage | Ergebnis |
 | - | ----- | -------- |
-| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden** — Details § 11.3 |
-| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden** — Details § 11.3 |
-| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden** — Details § 11.3 |
+| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden.** Nach den Live-Bugs: Scope-Range ist Projektion des aktuellen Documents, nicht eingefroren; Hide `inclusiveStart/End: false`; letzte editierbare Position ist `renderRange.to - 1`. Insert dort bleibt in A (G1e). Tippen in B's Rumpf erscheint nicht in A's Slice (G1f). Select-All-Copy aus A enthält `alpha body`, nicht `beta body` (G1g — Clipboard-Handler auf die Section geclippt). Marker bleiben im Document; `source`-DOM zeigt `#`, `wysiwyg`-DOM nicht (G1c). |
+| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden.** `transactionFilter` + `inputHandler` nur an wysiwyg. Vier lebend getippte `#` → `\#\#\#\#`, nicht `\\####` (G2b). Ursache war: Filter maskiert `#` zu `\#`, das DOM hat schon `#`, zweiter Durchgang maskiert den Backslash. Abhilfe: `inputHandler` fängt ab, ein Dispatch mit `filter: false`; `escapeMarkdown` ist die eine Maskierungsfunktion (L2, I6). Source lässt `#` unmaskiert. |
+| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden.** Lebend (G3c) und programmatisch: B's Caret wird nicht durch A's ersetzt. Abbildung durch den `ChangeSet` bleibt. |
 
-Belege: Spike `spikes/phase-0/`, Tests `tests/behaviour/phase-0-gate.spec.ts`. Fällt eine der
-drei Fragen bei einer echten Regression künftig um, ist § 11 zu revidieren.
+Fällt eine der drei Fragen bei einer echten Regression künftig um, ist § 11 zu revidieren.
 
 ### 16.2 Warum das Budget absolut sein muss
 

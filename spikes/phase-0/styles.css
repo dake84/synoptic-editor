@@ -1,0 +1,36 @@
+body {
+  font-family: sans-serif;
+  margin: 1.5rem;
+  color: #111;
+}
+.panes {
+  display: grid;
+  gap: 1rem;
+}
+.panes-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.panes-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.pane {
+  border: 1px solid #ccc;
+  min-height: 12rem;
+}
+h2 {
+  margin-top: 1.5rem;
+}
+h3 {
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+#log {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #f4f4f4;
+  white-space: pre-wrap;
+}
+.cm-editor {
+  height: 12rem;
+}

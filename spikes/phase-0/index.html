@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Phase 0 spike — G1–G3</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <h1>Phase 0 spike (G1–G3)</h1>
+    <p>
+      <code>SessionEditorState</code> has no view. Document ChangeSets travel through it;
+      selections do not. Split-view concept, star wiring.
+    </p>
+
+    <h2>Scene 1 · identical range · source | wysiwyg</h2>
+    <div class="panes panes-2">
+      <section>
+        <h3>src · source · A subtree</h3>
+        <div id="pane-src" class="pane"></div>
+      </section>
+      <section>
+        <h3>wys · wysiwyg · A subtree</h3>
+        <div id="pane-wys" class="pane"></div>
+      </section>
+    </div>
+
+    <h2>Scene 2 · nested scopes · A | A1 | A2</h2>
+    <div class="panes panes-3">
+      <section>
+        <h3>A · source · subtree</h3>
+        <div id="pane-a" class="pane"></div>
+      </section>
+      <section>
+        <h3>A1 · source · own</h3>
+        <div id="pane-a1" class="pane"></div>
+      </section>
+      <section>
+        <h3>A2 · source · own</h3>
+        <div id="pane-a2" class="pane"></div>
+      </section>
+    </div>
+
+    <pre id="log"></pre>
+    <script src="./dist/bundle.js"></script>
+  </body>
+</html>
