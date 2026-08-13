@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "status": "placeholder — every \"null\" must be replaced with a real value immediately before Phase 2's first benchmark run (SPEC.md B1). Once filled in, values are binding: a missed budget may not be raised afterward (B2).",
+    "corpus": "tests/fixtures/corpus.ts, FIXED_SEED",
+    "viewConfigClasses": "SPEC.md §15.2: single, identical×n, disjoint×n, containing(1+n), mixed"
+  },
+  "S": {
+    "timeToInteractiveMs": null,
+    "undoLatencyMs": null,
+    "cascadingStructureChangeMs": null,
+    "searchMs": { "view": null, "document": null },
+    "inputLatencyMsByConfig": {
+      "single": null,
+      "identical": null,
+      "disjoint": null,
+      "containing": null,
+      "mixed": null
+    },
+    "memoryMbByN": { "1": null, "2": null, "3": null, "5": null, "8": null }
+  },
+  "M": {
+    "timeToInteractiveMs": null,
+    "undoLatencyMs": null,
+    "cascadingStructureChangeMs": null,
+    "searchMs": { "view": null, "document": null },
+    "inputLatencyMsByConfig": {
+      "single": null,
+      "identical": null,
+      "disjoint": null,
+      "containing": null,
+      "mixed": null
+    },
+    "memoryMbByN": { "1": null, "2": null, "3": null, "5": null, "8": null }
+  },
+  "L": {
+    "timeToInteractiveMs": null,
+    "jumpToDistantNodeMs": null,
+    "undoLatencyMs": null,
+    "cascadingStructureChangeMs": null,
+    "searchMs": { "view": null, "document": null },
+    "inputLatencyMsByConfig": {
+      "single": null,
+      "identical": null,
+      "disjoint": null,
+      "containing": null,
+      "mixed": null
+    },
+    "memoryMbByN": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "5": null,
+      "note": "n capped at {1,2,3,5} for L per SPEC.md §15.2 — note here if runtime allows raising it to 8"
+    }
+  },
+  "vmForwarding": {
+    "note": "only applicable if V-M is ever built (B3/B4) — not part of the V-S budget set",
+    "S": null,
+    "M": null,
+    "L": null
+  }
+}
