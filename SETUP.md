@@ -186,7 +186,7 @@ schlechter.
 | 2 | Tooling: TypeScript, Vitest, Playwright, Lint — ohne Anwendungscode |
 | 3 | Die vier Prüfskripte aus § 3, **bevor** Anwendungscode entsteht |
 | 4 | Korpusgenerator + `BUDGETS.json` |
-| 5 | Sync-Kern (SPEC § 11.2) gegen G1–G3 (SPEC § 16.1) regressionsgeprüft — bereits einmal bestanden, hier erneut belegt, nicht neu verhandelt |
+| 5 | Neuer, schlanker Spike gegen G1–G3 (SPEC § 16.1) — die Architektur aus § 11.2 ist als Zielbild entschieden, aber in diesem Repository noch nicht belegt; dieser Schritt belegt sie |
 | 6 | Phase 1 nach SPEC § 16 |
 
 Schritt 3 vor Schritt 6 ist Absicht: Prüfungen, die erst nachträglich eingeführt werden,
