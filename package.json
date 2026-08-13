@@ -13,6 +13,10 @@
     "lint": "eslint .",
     "test:unit": "vitest run tests/unit",
     "test:behaviour": "playwright test --pass-with-no-tests",
+    "spike:phase0:build": "esbuild spikes/phase-0/main.ts --bundle --outfile=spikes/phase-0/dist/bundle.js --format=iife --platform=browser",
+    "spike:phase0": "npm run spike:phase0:build && npx --yes serve spikes/phase-0 -l 4174",
+    "harness:build": "esbuild harness/main.ts --bundle --outfile=harness/dist/bundle.js --format=iife --platform=browser",
+    "harness": "npm run harness:build && npx --yes serve harness -l 4173",
     "check:core-purity": "node scripts/check-core-purity.mjs",
     "check:no-waiting": "node scripts/check-no-waiting.mjs",
     "check:rules-covered": "node scripts/check-rules-covered.mjs",
@@ -23,10 +27,17 @@
     "@eslint/js": "^9.18.0",
     "@playwright/test": "^1.55.0",
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.18.0",
     "globals": "^15.14.0",
+    "happy-dom": "^20.11.2",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.20.0",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.8"
   }
 }

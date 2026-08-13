@@ -1,0 +1,12 @@
+---
+description: Scroll owner (I4) and single-site guards (I6, L6)
+globs: src/view/**
+alwaysApply: false
+---
+
+# View (`src/view/**`)
+
+- **I4:** Every scroll change has exactly one owner and a named `cause`. Prefer making `cause` a required parameter.
+- Guards (L1–L6, FM1–FM2) are defined and enforced in **one** place (**I6**, **L6**). No second filter that re-implements the same rule.
+- In V-S, view-dependent behaviour uses transaction annotations — not a second state copy or presentation-in-state.
+- Presentation (`source` | `wysiwyg`) must not invent markdown that is invalid in `source` (**I9**).

@@ -1,4 +1,8 @@
 {
-  "_comment": "Hand-maintained mirror of SPEC.md §12 (Öffentliche API). Update this list whenever §12 changes — check-export-surface.mjs compares src/index.ts against it. Empty until Phase 1 creates src/index.ts.",
-  "exports": []
+  "_comment": "Hand-maintained mirror of SPEC.md §12 (Öffentliche API). Update whenever §12 or src/index.ts changes.",
+  "exports": [
+    "createSession",
+    "Session",
+    "ViewHandle"
+  ]
 }

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Phase 0 risk gate (G1–G3)</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Phase 0 — risk gate</h1>
+      <p>
+        One <code>EditorState</code> per view. Document <code>ChangeSet</code>s are
+        forwarded; selection is not. G1 presentation decorations, G2 wysiwyg guards,
+        G3 independent carets.
+      </p>
+    </header>
+
+    <section class="controls" aria-label="Spike status">
+      <span id="status" class="status" data-testid="status"></span>
+    </section>
+
+    <section class="panes">
+      <div class="pane">
+        <h2>View A — source · Node-A</h2>
+        <div id="view-a" data-testid="view-a"></div>
+      </div>
+      <div class="pane">
+        <h2>View B — wysiwyg · Node-B</h2>
+        <div id="view-b" data-testid="view-b"></div>
+      </div>
+    </section>
+
+    <script src="./dist/bundle.js"></script>
+  </body>
+</html>

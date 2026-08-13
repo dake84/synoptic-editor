@@ -1,5 +1,7 @@
 node_modules/
 dist/
+spikes/phase-0/dist/
+harness/dist/
 coverage/
 *.log
 .DS_Store

@@ -1,0 +1,12 @@
+---
+description: Headless core invariants (I8) — no engine/DOM, no domain terms
+globs: src/core/**
+alwaysApply: false
+---
+
+# Core (`src/core/**`)
+
+- **I8:** No `@codemirror/view`, no UI framework, no DOM globals (`document`/`window`/`HTMLElement`). Enforced by `scripts/check-core-purity.mjs`.
+- No domain-specific identifiers — structure levels come only from `StructureSchema` (`SPEC.md` § 4).
+- Pure TypeScript; unit-testable without a browser.
+- One place enforces each invariant (**I6**). Do not add a second check of the same rule elsewhere.

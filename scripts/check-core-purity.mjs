@@ -12,7 +12,12 @@ const FORBIDDEN_IMPORT_PATTERNS = [
   /\bvue\b/,
   /\bsvelte\b/,
 ];
-const FORBIDDEN_GLOBALS = [/\bdocument\./, /\bwindow\./, /\bHTMLElement\b/];
+const FORBIDDEN_GLOBALS = [
+  // DOM document APIs — not the core module `document.ts` / prose "document."
+  /\bdocument\.(getElementById|querySelector|querySelectorAll|createElement|createTextNode|body|documentElement|addEventListener)\b/,
+  /\bwindow\./,
+  /\bHTMLElement\b/,
+];
 
 function walk(dir) {
   const out = [];

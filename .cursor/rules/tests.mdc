@@ -1,0 +1,13 @@
+---
+description: @covers required, no time waits, commands not gestures
+globs: tests/**
+alwaysApply: false
+---
+
+# Tests (`tests/**`)
+
+- Every test annotates `/** @covers … */` with SPEC rule ids and/or `T*` case ids.
+- **I5:** No `setTimeout`, `waitForTimeout`, `sleep`, or `retry` in tests. Enforced by `scripts/check-no-waiting.mjs`.
+- Behaviour tests drive state via the command interface (`SPEC.md` § 13.4), not pointer gestures.
+- Behaviour tests must not read `EDITOR_VARIANT` (M1) — exceptions only T-V1/T-V2.
+- Assert via inspector or rendered result, never internal component objects (E2).

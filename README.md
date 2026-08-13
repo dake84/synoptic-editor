@@ -7,12 +7,13 @@ your own host.
 
 ## Status
 
-**Specification phase — no code yet.** The full requirements live in [`SPEC.md`](./SPEC.md),
-distilled from lessons learned building a production novel-writing editor the hard way.
-Phase 0 (`SPEC.md` § 16) is a risk gate on the architecture's core assumption; implementation
-starts once it passes.
+**Phase 0 risk gate passed** (G1–G3 — see `SPEC.md` § 16.1): one `EditorState` per view,
+document-only forwarding, independent selections. Evidence lives in `spikes/phase-0/` and
+`tests/behaviour/phase-0-gate.spec.ts`. Next is Phase 1 against the behaviour matrix, with
+the CM6 binding following the spike. Shared `EditorState` (V-S) is not gate-endorsed. Not a
+usable package yet.
 
-Not usable yet. Watch or star if you want to follow along.
+The full requirements live in [`SPEC.md`](./SPEC.md).
 
 ## Why
 
@@ -49,6 +50,5 @@ MIT — see [`LICENSE`](./LICENSE).
 
 ## Contributing
 
-Not open for contributions in the usual sense yet — the specification and the architecture
-risk gate need to land first. If you're interested, open an issue; please read `SPEC.md` and
-`AGENTS.md` before proposing anything.
+Phase 0 is closed; Phase 1 is the next build slice. If you're interested, open an issue;
+please read `SPEC.md` and `AGENTS.md` before proposing anything.

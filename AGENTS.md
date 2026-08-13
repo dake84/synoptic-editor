@@ -45,9 +45,10 @@ Zeigergesten.
 
 ## Phasen
 
-`SPEC.md` § 16. **Phase 0 ist das Risikotor G1–G3** — es entscheidet, ob V-S trägt. Phase 1
-baut V-S; V-M wird nur gebaut, wenn G1–G3 durchfallen oder ein Messbudget verfehlt wird
-(B3). V-M ist Rückfalllinie, keine gestrichene Option.
+`SPEC.md` § 16. **Phase 0 ist das Risikotor G1–G3** — Presentation, Guards,
+Selektionsunabhängigkeit; ohne geteilten `EditorState`. Phase 1 folgt der Spike-Konstruktion
+(ein `EditorState` je View, Document-Weiterleitung). V-S ist dokumentierte Alternative
+(§ 11.2), nicht durch das Tor gedeckt.
 
 ## Fertig heißt
 

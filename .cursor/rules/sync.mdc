@@ -1,0 +1,12 @@
+---
+description: Sync variant boundary, § 7.3 flow, atomicity
+globs: src/sync/**
+alwaysApply: false
+---
+
+# Sync (`src/sync/**`)
+
+- Variant-specific only: `shared-state/` (V-S) vs `per-view-state/` (V-M). Do not leak variant details into `src/core` or behaviour tests.
+- Structure actions follow `SPEC.md` § 7.3: plan → one ChangeSet → apply → reproject tree → validate scopes → recompute relations → one timeline entry.
+- **V-M:** Step 4 must be atomic across all states — partial forwarding is a construction defect.
+- V-M is built only if the risk gate fails or a budget is missed (B3/B4). Do not implement it "just in case".

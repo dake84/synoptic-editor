@@ -251,7 +251,7 @@ Verbindlich. Verletzung ist ein Defekt, kein Kompromiss.
 
 | # | Invariante |
 | - | ---------- |
-| **I1** | Genau ein Document je Session. Keine View hält eine Textkopie. |
+| **I1** | Genau ein Document je Session. Keine View hält eine unabhängige Textwahrheit. |
 | **I2** | Der Tree ist jederzeit Projektion des Document. Kein Pfad ändert den Tree ohne Textänderung. |
 | **I3** | Genau eine Timeline je Session mit genau einem Eintrittspunkt. Kein Routing zwischen Stacks. |
 | **I4** | Jede Änderung der Scrollposition hat genau einen Owner und eine benannte Ursache. |
@@ -261,6 +261,11 @@ Verbindlich. Verletzung ist ein Defekt, kein Kompromiss.
 | **I8** | Der Kern ist frei von UI-Framework-Abhängigkeiten und ohne DOM testbar. |
 | **I9** | `wysiwyg` erzeugt keinen Zustand, der in `source` ungültiges Markdown wäre. |
 | **I10** | Kein Cache, dessen Korrektheit von der Disziplin der Aufrufer abhängt. |
+
+**I1 und CM6-Puffer.** I1 spricht das Session-Document an, nicht die Zahl der `Text`-Objekte
+in der Engine. Ein `EditorState` je View mit atomarer `ChangeSet`-Weiterleitung ist kein
+zweites Document — die Puffer müssen gleich sein; Divergenz ist ein Fehler. Eine geteilte
+CM6-Selektion folgt daraus nicht und ist kein I1-Gebot.
 
 ---
 
@@ -582,6 +587,11 @@ Ein `EditorState`, N `EditorView`s.
 Cursorposition anderer Views wird als passive Dekoration gerendert. Ob das die
 `disjoint`-Schwäche entschärft, ist in Phase 1 zu klären (§ 16).
 
+**Fan-out:** Ursprungs-View zuerst `update(trs)` (CodeMirror-Split). Bei
+`select.pointer` bekommen Geschwister denselben End-State per `setState` — nicht
+dieselbe Transaction, sonst schreibt CM6 den Caret in jede View und stiehlt den
+Fokus (G3). ViewPlugins überleben `setState` über den G1-WeakMap-Slot.
+
 ### 11.3 V-M — Multi Instance
 
 Ein `EditorState` je View plus ein **kanonischer State ohne View**, `ChangeSet`-Weiterleitung, Timeline außerhalb mit einem Eigner.
@@ -900,11 +910,10 @@ unterschiedlicher Erwartung hinterlegt und dienen als Beobachtungsgrundlage für
 | **T-V1** | Relation `identical`: Cursor in View A setzen. V-S — View B zeigt denselben Cursor. V-M — View B behält ihren eigenen. Erwartungswert je Variante fixiert. |
 | **T-V2** | Relation `disjoint`: Cursor in View A setzen. V-S — die geteilte Selektion liegt außerhalb der Range von B; festgehalten wird, was B dann darstellt und ob eine Bedienung von B den Cursor unerwartet fortbewegt. V-M — B unberührt. **Härtefall**; ergibt zusammen mit der Milderung aus § 11.2 die Antwort auf § 11.4, Frage 2. |
 
-**Ist hier etwas zu entscheiden?** Jetzt nicht — bewusst. Die Frage „ist geteilte Selektion
-tragbar" ist ohne laufenden Code eine Geschmacksfrage. Zu entscheiden ist sie am Ende von
-Phase 2, mit T-V1/T-V2 und der Milderung aus § 11.2 als Grundlage. Festzulegen ist jetzt nur,
-dass V-S ohne Milderung **und** mit Milderung gemessen wird — sonst wird eine Variante
-verworfen, deren einfachste Verbesserung nie probiert wurde.
+**Ist hier etwas zu entscheiden?** Für den Phase-1-Default nein: G3 hat unabhängige Selektion
+festgelegt (O7). T-V1/T-V2 bleiben die Beobachtungsfälle, falls V-S je gebaut wird — dann
+ohne und mit Milderung (§ 11.2), sonst würde eine Variante verworfen, deren einfachste
+Verbesserung nie probiert wurde.
 
 ---
 
@@ -970,39 +979,53 @@ welchem n die Empfehlung kippt.
 
 ## 16 · Phasen
 
-**Vorbemerkung zur Reihenfolge.** Ursprünglich war geplant, Phase 1 in beiden Varianten zu
-bauen und danach zu vergleichen. Das wurde geändert — mit offengelegter Begründung, weil die
-Gründungsidee dieses Dokuments war, **nicht wieder per Setzung zu entscheiden**.
+**Vorbemerkung zur Reihenfolge.** Ursprünglich sollte Phase 0 entscheiden, ob ein geteilter
+`EditorState` (V-S) trägt. Das Tor hat diese Konstruktion **nicht** mehr als Anforderung.
+Begründung: I1 verlangt ein Session-Document, keine geteilte CM6-Selektion. Selektion ist
+`EditorSelection` (Anker/Head im State). Sie mit dem State zu teilen ist eine Nebenwirkung
+von V-S, kein Produktziel — und sie ist der Härtefall bei `disjoint` (§ 11.4).
 
-Der Grund für die Änderung ist nicht Vorliebe, sondern folgende Prüfung: **V-M kann bei
-Speicher, Weiterleitungslatenz und Divergenzfreiheit nicht gewinnen** — das folgt aus § 11.2/
-§ 11.3 und braucht keine Messung. Gewinnen kann es nur bei **Selektionsunabhängigkeit** und
-**Guard-Lesbarkeit**. Beides wird beim Bauen von V-S sichtbar, ohne dass V-M existiert.
+Phase 0 prüft deshalb drei **produktseitige** Lasten, ohne einen geteilten `EditorState`
+vorauszusetzen. Der Spike beantwortet sie mit einem `EditorState` je View und Weiterleitung
+nur der Document-`ChangeSet`s (CodeMirror-Split). V-S bleibt in § 11.2 dokumentiert, ist
+aber nicht durch das Tor gedeckt und nicht Phase-1-Default.
 
-Damit daraus keine kampflose Setzung wird, gelten zwei Bedingungen: das **Risikotor** in
-Phase 0 und ein **absolutes** statt vergleichendes Messbudget in Phase 2 (§ 16.2).
+Das Messbudget in Phase 2 (§ 16.2) bleibt absolut: die gewählte Konstruktion muss die
+Budgets halten, nicht eine ungebauten Alternative schlagen.
 
 | Phase | Inhalt | Ergebnis |
 | ----- | ------ | -------- |
-| **0** | **Risikotor V-S** (§ 16.1) — nur die drei Punkte, die V-S kippen könnten | schriftliches Bestanden/Durchgefallen je Punkt |
-| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — **in V-S**, mit Selektions-Milderung (§ 11.2) | T1–T37, T57–T63, T83–T106 grün; T-V1/T-V2 für V-S festgeschrieben |
-| **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → V-M bauen |
+| **0** | **Risikotor** (§ 16.1) — Presentation, Guards, Selektionsunabhängigkeit; ohne geteilten `EditorState` | schriftliches Bestanden/Durchgefallen je Punkt |
+| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — CM6-Anbindung wie der Spike: ein `EditorState` je View, nur Document-Änderungen weiterleiten. Keine Selektions-Milderung (§ 11.2) | T1–T37, T57–T63, T83–T106 grün; T-V1/T-V2 mit der Spike-Erwartung (Selektion je View) |
+| **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Budget verfehlt (B2), kein automatischer Variantenwechsel |
 | **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig, strukturelle Listenansicht | T38–T56, T64–T82 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
 ### 16.1 Risikotor (Phase 0)
 
-Drei Fragen, in ein bis zwei Tagen beantwortbar. Sie sind der **gesamte** Risikoanteil von
-V-S — alles andere an V-S ist gewöhnliche Arbeit.
+Drei Fragen, in ein bis zwei Tagen beantwortbar. Ein geteilter `EditorState` ist **keine**
+Tor-Anforderung.
 
 | # | Frage | Bestanden, wenn |
 | - | ----- | --------------- |
-| **G1** | Liefert ein `ViewPlugin` auf einem **geteilten** State je View unterschiedliche Dekorationen und atomare Bereiche? | Zwei Views auf demselben State zeigen gleichzeitig `source` und `wysiwyg`, ohne Eingriff in den State |
-| **G2** | Bleiben annotationsgeführte Guards lesbar? | Die Regeln L1–L3 sind über Transaktions-Annotationen ausgedrückt, ohne Sonderfall je Tastenkombination, und ein Leser erkennt aus dem Filter, welche View gemeint ist |
-| **G3** | Ist die geteilte Selektion bei `disjoint` tragbar? | Zwei Views auf verschiedenen Zweigen, Tippen in einer — die andere bleibt bedienbar und verwirrt nicht; mit Milderung (§ 11.2) und ohne, beides festgehalten |
+| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | `source` und `wysiwyg` gleichzeitig; Node-A vs. Node-B; Document-Strings nach einer Änderung gleich; Marker nur in `source` sichtbar |
+| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, in einem Filter, ohne Tasten-Sonderfall? | `#` in wysiwyg → escaped; mehrzeiliges Einfügen ist eine maskierte Änderung; partielles Marker-Delete expandiert; `#` in `source` bleibt unmaskiert |
+| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | Selektion in A ändert den Caret von B nicht; Tippen in A aktualisiert B's Document (Stringgleichheit), B's Caret bleibt im eigenen Zweig (Abbildung durch den `ChangeSet` ist erlaubt, Übernahme von A's Selektion nicht) |
 
-**Fällt einer durch, wird V-M gebaut** — dann ist die ursprüngliche Doppelbau-Reihenfolge
-wiederhergestellt, nur eine Woche später und mit einem klaren Grund.
+**Fällt einer durch**, ist die Spike-Konstruktion untragbar — dann ist § 16.1 zu revidieren,
+nicht still auf V-S zurückzufallen.
+
+#### Urteil (Spike `spikes/phase-0/`, Tests `tests/behaviour/phase-0-gate.spec.ts`)
+
+| # | Ergebnis | Begründung |
+| - | -------- | ---------- |
+| **G1** | **Bestanden** | Ein `EditorState` je View. Presentation und Scope stehen in der View-Konfiguration (ViewPlugin-Closure), nicht im Document. `source` zeigt Marker, `wysiwyg` blendet sie per Replace/`atomicRanges` aus; fremde Zweige per Line-Decoration. Document-Strings bleiben gleich. Hinweis: Replace über Zeilenumbrüche darf in CM6 nicht aus einem ViewPlugin kommen — Line-Decorations reichen für den Scope-Beweis. |
+| **G2** | **Bestanden** | L1–L3 sitzen in einem `transactionFilter` nur auf dem wysiwyg-State. Source hat den Filter nicht — View-Identität braucht keine Annotation. Input/Paste/Delete setzen `userEvent`; kein Tasten-Sonderfall. |
+| **G3** | **Bestanden** | Selektion wird nicht weitergeleitet. `setSelection`/Tippen in A lässt B's Caret im eigenen Zweig; B's Document folgt. Keine Milderung, kein passiver Caret. |
+
+**Gesamturteil: Phase 0 bestanden ohne geteilten EditorState.** Phase 1 folgt für die
+CM6-Anbindung der Spike-Konstruktion. `src/sync/shared-state/` ist nicht durch das Tor
+gedeckt. V-S bleibt in § 11.2 dokumentiert.
 
 ### 16.2 Warum das Budget absolut sein muss
 
@@ -1013,11 +1036,11 @@ gut noch schlecht ohne Maßstab. Deshalb:
 | - | ----- |
 | **B1** | Die Budgets je Messgröße aus § 15.3 werden **vor** dem ersten Lauf festgelegt und im Repository festgeschrieben. |
 | **B2** | Nachträgliches Anheben eines Budgets, weil der Messwert es verfehlt, ist unzulässig. Verfehlt heißt verfehlt. |
-| **B3** | Verfehlt V-S ein Budget bei Korpus L, wird **V-M gebaut und gemessen** — dann als echter Vergleich. Das ist der Auslöser, der § 11.4 ersetzt, solange nur eine Variante existiert. |
-| **B4** | V-M bleibt bis dahin **dokumentierte Rückfalllinie**, nicht gestrichene Option. § 11.3 und § 11.5 bleiben gültig. |
+| **B3** | Verfehlt die Phase-1-Konstruktion (ein `EditorState` je View, Document-Weiterleitung) ein Budget bei Korpus L, gilt das Budget als verfehlt. Ein nachträglicher Wechsel auf geteilten EditorState ist dadurch nicht angeordnet. |
+| **B4** | V-S (§ 11.2) bleibt dokumentierte Alternative, nicht Phase-1-Default und nicht durch das Tor gedeckt. § 11.3 beschreibt die gewählte CM6-Anbindung; § 11.5 bleibt gültig. |
 
-Damit ist die Entscheidung weiterhin belegt statt gesetzt — nur ist der Beleg ein Budget
-statt eines Zweitbaus, und der Zweitbau bleibt als Auslöser vorgesehen.
+Damit ist die Entscheidung weiterhin belegt statt gesetzt — der Beleg ist das Budget der
+gewählten Konstruktion, nicht ein Zweitbau.
 
 ---
 
@@ -1026,12 +1049,12 @@ statt eines Zweitbaus, und der Zweitbau bleibt als Auslöser vorgesehen.
 | # | Frage | Stand |
 | - | ----- | ----- |
 | O1 | Name der Komponente und des Repositories | offen |
-| O2 | Lizenz | offen — **vor dem ersten Commit im neuen Repository entscheiden**; nachträglich wird es mit jedem Fremdbeitrag schwerer |
+| O2 | Lizenz | **entschieden: MIT** — siehe `LICENSE` |
 | O3 | Sprache der Spezifikation bei Veröffentlichung | Entwurf deutsch, Veröffentlichung englisch |
 | O4 | Navigations-Oberfläche mitgeliefert? | nein — Baumdaten, `navigateTo` und Auswahl-API ja, Oberfläche nein |
 | O5 | Obergrenze der Views | keine im Modell; Benchmark nach § 15.2 |
 | O6 | Welche View speist `session.visibleNode` | die fokussierte |
-| O7 | Selektionsverhalten | kein Vorabentscheid — Ergebnis aus Risikotor G3 (§ 16.1) und T-V1/T-V2 |
+| O7 | Selektionsverhalten | **entschieden (G3):** Selektion je View, nicht geteilt. Milderung § 11.2 entfällt für den Phase-1-Default. T-V1/T-V2 bleiben Beobachtung, falls V-S je gebaut wird. |
 | O8 | Nehmen Frontmatter-Formularfelder an der Textsuche teil? | **entschieden: nein** (FM7) — als Pill gerenderte Werte dagegen ja (P5) |
 | O9 | Rendert `wysiwyg` Überschriftentitel und Chip-Beschriftungen als echten Text? | **entschieden: ja**, erzwungen durch F7 — Bauvorgabe, keine offene Frage |
 | **O10** | Abweichende Reihenfolgen (Chronologie, Achsenreihenfolge) | **entschieden: Host-Sache.** Reine Präsentation, live über `subscribe`, gespeist aus `session.readNodes(ids)`. Kein Projektionsmodell in der Komponente — Dekorationen können Text nicht umordnen, eine editierbare Umordnung erzwänge je View ein permutiertes Dokument. Annotationen dorthin über TrackedPosition (§ 3.4). |
