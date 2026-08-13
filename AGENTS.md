@@ -52,7 +52,7 @@ Repository-Schnitt, Prüfskripte, Testebenen und Agenten-Budget: `SETUP.md`.
 
 | Ebene | Umfang |
 | ----- | ------ |
-| Verhalten (E2E) | `SPEC.md` § 14, T1–T108 |
+| Verhalten (E2E) | `SPEC.md` § 14, T1–T116 |
 | Unit | Sync-Kern-Mechanik (§ 11.2) |
 
 E2E-Tests lösen Zustände über die Kommandoschnittstelle aus (`SPEC.md` § 13.4), nicht über
@@ -60,18 +60,15 @@ Zeigergesten.
 
 ## Phasen
 
-`SPEC.md` § 16. Die Architektur ist entschieden (§ 11) — kanonischer State ohne View, ein
-`EditorState` je View, Dokument-Weiterleitung, keine Selektions-Weiterleitung — aber in
-**diesem** Repository noch nicht neu belegt: `spikes/`, `harness/`, der bisherige
-Sync-/View-Layer und die zugehörigen Tests wurden entfernt, weil sie gegen eine inzwischen
-verworfene Prämisse gebaut waren (`git log` zeigt die Historie). Erster Schritt ist deshalb
-**§ 16.1 neu** — G1–G3 frisch gegen echten Code belegen, mit einem neuen, schlanken Spike —
-erst danach Phase 1. `src/core/**` ist davon nicht betroffen und bleibt stehen (kennt CM6
-nicht).
+`SPEC.md` § 16. Die Architektur ist entschieden und in `spikes/phase-0/` belegt (§ 11.3) —
+`SessionEditorState` ohne View, ein `EditorState` je View, Dokument-Weiterleitung, keine
+Selektions-Weiterleitung, sticky `ScopeRange` (EX1–EX5). Als Nächstes Phase 1. `src/core/**`
+bleibt stehen (kennt CM6 nicht). Der frühere Sync-/View-Layer gegen die verworfene
+Variantenprämisse ist entfernt (`git log`).
 
 ## Fertig heißt
 
-Alle Regeln aus `SPEC.md` § 5–10 erfüllt, T1–T108 grün, Benchmark-Ergebnis mit Zahlen und
+Alle Regeln aus `SPEC.md` § 5–10 erfüllt, T1–T116 grün, Benchmark-Ergebnis mit Zahlen und
 Falsifikationssatz (§ 15.4), API gehärtet (§ 12).
 
 ## Sprache

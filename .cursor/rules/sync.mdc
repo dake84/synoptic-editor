@@ -6,8 +6,8 @@ alwaysApply: false
 
 # Sync (`src/sync/**`)
 
-- Canonical `EditorState` without a view is the document truth. One `EditorState` per view.
-- Forward document `ChangeSet`s from the canon to every view (star, never view-to-view).
+- `SessionEditorState` (`EditorState` without a view) is the document truth. One `EditorState` per view.
+- Forward document `ChangeSet`s from the session to every view (star, never view-to-view).
 - Do not forward selection.
 - Structure actions follow `SPEC.md` § 7.3: plan → one ChangeSet → apply on the canon → forward → reproject tree → validate scopes → recompute relations → one timeline entry.
 - Step 4 must be atomic across all view states — partial forwarding is a construction defect.

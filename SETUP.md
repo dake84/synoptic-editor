@@ -27,7 +27,7 @@ src/
     dirty.ts               ownRange / subtreeRange (D1–D5)
     search.ts              Projektion, Modi, Trefferklassen
     structure.ts           Kaskadenplanung, R7-Ablehnung
-  sync/                    Sync-Kern (§ 11): kanonischer State, Weiterleitung
+  sync/                    Sync-Kern (§ 11): SessionEditorState, Weiterleitung
     engine.ts              ein EditorState je View, Dokument-Weiterleitung (§ 11.2)
     index.ts               createSync()
   view/                    CM6-Adapter, DOM
@@ -42,7 +42,7 @@ harness/                   Testoberfläche, wird nicht veröffentlicht
   inspector.ts             Instrumentierung (§ 13.3)
 
 tests/
-  behaviour/               T1–T108
+  behaviour/               T1–T116
   unit/
     sync/                  Sync-Kern-Mechanik (§ 11.2)
   fixtures/corpus.ts       Generator S/M/L, fester Seed

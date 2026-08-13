@@ -99,10 +99,12 @@ lassen. Dann ist § 1.1 selbst zu prüfen, nicht die Engine.
 | **Tree** | Geordnete Projektion aller Nodes. Kein zweiter Datenbestand. |
 | **ownRange(n)** | Überschrift + Frontmatter + Rumpf **bis zur ersten Kind-Überschrift**. |
 | **subtreeRange(n)** | `ownRange(n)` einschließlich aller Nachkommen. |
-| **View** | Eine Darstellung. Hat Scope, Presentation, Grain, Scroll, Find-Zustand. |
+| **View** | Eine Darstellung. Hat Scope, Presentation, Grain, Scroll, Find-Zustand. Jede View hält einen eigenen `EditorState` plus `EditorView` und denselben vollen `Text` wie die Session — keinen kürzeren Puffer. |
 | **Scope** | Node-Id **plus Include-Modus**: `own` oder `subtree`. |
-| **renderRange(v)** | Der Bereich, den View `v` rendert: `ownRange(scope)` bei `include: 'own'`, sonst `subtreeRange(scope)`. **`to` ist exklusiv:** die letzte editierbare Position der View ist `to - 1` (bzw. `to`, wenn `to` das Dokumentende ist). Ein Insert *bei* `to` ist das erste Zeichen der nächsten Node — bei einer ATX-Überschrift zerstört das die Marker-Zeile. |
-| **Session** | Hält Document, Tree, Baseline, View-Register, Schema, TrackedPositions; nutzt eine Timeline. |
+| **renderRange(v)** | **Initiale** Range von View `v`: `ownRange(scope)` bei `include: 'own'`, sonst `subtreeRange(scope)`. **`to` ist exklusiv:** die letzte editierbare Position ist `to - 1` (bzw. `to`, wenn `to` das Dokumentende ist). Ein Insert *bei* `to` ist das erste Zeichen der nächsten Node. Der **lebende** Ausschnitt ist nicht `renderRange`, sondern `ScopeRange` (§ 3.6). |
+| **ScopeRange** | Lebender Ausschnitt einer offenen View: `{ from, to, lost }`, durch jede Änderung abgebildet (§ 3.6). Eine Stelle (I6). |
+| **Session** | Hält `SessionEditorState`, Tree, Baseline, View-Register, Schema, TrackedPositions; nutzt eine Timeline. |
+| **SessionEditorState** | Session-eigener CM6-`EditorState` **ohne** `EditorView`. Die eine Textwahrheit. Views projizieren ihn. |
 | **Timeline** | Chronologische Folge rücknehmbarer Einträge. Injizierbar (§ 9.1). |
 | **TrackedPosition** | Stabile, mitwandernde Marke auf einer Position oder einem Bereich (§ 3.4). |
 
@@ -121,7 +123,7 @@ Kein Belang existiert auf beiden Ebenen. Kein Wert wird zweimal geführt.
 
 | Session | View |
 | ------- | ---- |
-| Document · Tree · Baseline · View-Register · Schema · Fokus · Timeline-Anbindung | Scope · Presentation · Grain · Scrollposition · visibleNode · Find-Zustand |
+| SessionEditorState · Tree · Baseline · View-Register · Schema · Fokus · Timeline-Anbindung | Scope · Presentation · Grain · Scrollposition · visibleNode · Find-Zustand · eigener EditorState |
 
 Abgeleitet, nicht gespeichert:
 
@@ -176,7 +178,7 @@ eingesetzte Fassung zu verifizieren). Das ist gebaute Logik, kein Nebenprodukt.
 in der `EditorView` — und ein State ohne View ist in CM6 normal. Die TrackedPositions liegen
 deshalb auf einem **session-eigenen State**, der so lange existiert wie die Session.
 
-Der kanonische State ohne View ist hierfür ebenso Pflicht wie für das Dokument selbst
+Der `SessionEditorState` ohne View ist hierfür ebenso Pflicht wie für das Dokument selbst
 (§ 11.2) — hinge er an einer View, wäre deren Schließen ein Eigentümerwechsel im Betrieb.
 TrackedPositions gehören in Phase 1 (§ 16).
 
@@ -207,7 +209,27 @@ view.getState() → {
 | **V7** | **TrackedPosition überleben `destroy()`.** Sie liegen in der Session, nicht in der View, und werden weiter mitgeführt, während keine View sie rendert. Nach Wiederöffnen ist die Position exakt — auch wenn zwischenzeitlich genau dort editiert wurde. |
 | **V8** | Eigentum: `view.destroy()` gibt die TrackedPosition der View frei — **es sei denn**, sie wurden zuvor über `getState()` herausgegeben. Ab da liegt die Freigabe beim Host (`release`, TP4). So verliert eine geschlossene View ihre Position nicht versehentlich, und ein Host, der sie nicht braucht, leckt nicht. |
 | **V9** | Ein TrackedPosition kostet einen Positionsmarker. Eine Obergrenze für gleichzeitige **Views** muss die Zahl der TrackedPosition nicht mitbegrenzen. |
-| **V10** | Wird die Scope-Node einer geschlossenen View gelöscht, meldet TP2 den TrackedPosition als ungültig; beim Wiederherstellen greifen R2 (Scope auf überlebenden Vorfahren) und V5 (Caret an den Anfang). |
+| **V10** | Wird die Scope-Node einer **geschlossenen** View gelöscht, meldet TP2 den TrackedPosition als ungültig; beim Wiederherstellen greifen R2 (Scope auf überlebenden Vorfahren) und V5 (Caret an den Anfang). Eine **offene** View fällt nicht auf den Vorfahren — EX3/EX4. |
+
+### 3.6 Lebender Ausschnitt
+
+`renderRange` bestimmt den Ausschnitt **einmal** beim Öffnen (Titel/Tree). Danach ist der
+lebende Bereich ein durch den `ChangeSet` abgebildetes Intervall — nicht jedes Mal neu über
+den Titel aufgelöst. Titel-Neuauflösung nach Enter an `from` hat den Zeilenumbruch aus dem
+Ausschnitt geworfen und ein Geschwister adoptiert; das ist ein Konstruktionsfehler.
+
+| # | Regel |
+| - | ----- |
+| **EX1** | Der lebende Ausschnitt wird durch jede Änderung abgebildet: `from` mit Assoc **−1** (Inserts an `from` bleiben innen), `to` mit Assoc **+1** (Inserts an der exklusiven Kante bleiben außen). |
+| **EX2** | Hide, Fence, Copy, Select-All und Caret-Klammer lesen **denselben** `ScopeRange` (I6). Eine zweite Berechnung derselben Range — Titel-Lookup, eingefrorene Offsets, parallele Projektion — ist ein Konstruktionsfehler. |
+| **EX3** | Leert eine View **ihren eigenen** Ausschnitt, bleibt sie gemountet und editierbar. Ein leerer Ausschnitt (`from === to`) nimmt Inserts an diesem Punkt an. Das ist nicht `lost`. |
+| **EX4** | Leert eine **fremde** Änderung (Sync) einen zuvor nicht-leeren Ausschnitt, wird er `lost`. Die Session meldet `scopeLost` **einmal** über `subscribe`. Der Bereich wächst nicht mit späteren Inserts am Kollapspunkt; lokale Edits sind gesperrt; Hide zeigt nichts. Der Host behandelt das wie Schließen (V8) — kein Tab-Chrome in der Komponente. |
+| **EX5** | Ein fehlender Titel darf keinen Nachbarn adoptieren. Kein Geschwister-Fallback bei der initialen Auflösung und kein stilles Umhängen eines `lost`-Ausschnitts. |
+
+Hide ist Darstellung, nicht Isolation. Isolation ist der Fence (`changeFilter` /
+`transactionFilter` auf `ScopeRange`) plus die eine in-section-Regel, dass die nächste
+Überschrift auf Spalte 0 bleibt. `atomicRanges` gehören auf wysiwyg-Marker, **nicht** auf
+das Hide außerhalb des Ausschnitts — `skipAtomic` dehnt sonst eine Löschung in den Nachbarn.
 
 ---
 
@@ -331,7 +353,7 @@ Jede Strukturänderung ist eine Textänderung (I2) und liegt auf der Timeline (I
 | # | Regel |
 | - | ----- |
 | **R1** | Eine neue Node innerhalb der Range einer View erscheint dort ohne Zutun — auch in Views mit gröberem Grain, die sie enthalten. |
-| **R2** | Wird die Scope-Node einer View entfernt, fällt ihr Scope auf den nächsten überlebenden Vorfahren. Kein toter Verweis, kein Leerzustand. |
+| **R2** | Wird die Scope-Node einer **geschlossenen** View entfernt, fällt ihr Scope beim Wiederherstellen auf den nächsten überlebenden Vorfahren (V10). Eine **offene** View fällt nicht um: Selbst-Leeren bleibt gemountet (EX3), fremdes Leeren meldet `scopeLost` (EX4). |
 | **R3** | Rangänderung einer Scope-Node lässt den Scope gültig (Identität bleibt); Grain-Chrome und Range werden neu bestimmt. |
 | **R4** | Verlässt eine Node die Range von View A und tritt in die von View B ein, rendern beide neu. Keine Neumontage. |
 | **R5** | Strukturbearbeitung in `wysiwyg` folgt `policy.structureEditingInWysiwyg` (§ 4). Über `source` und API immer zulässig. |
@@ -346,11 +368,12 @@ Antwort auf „wie funktionieren `apply` und Undo":
 1. Host ruft session.apply(action)                     — z. B. „Node X löschen"
 2. Session plant die Kaskade gegen Schema + Tree       — Verletzung → R7, Abbruch
 3. Plan wird zu genau einem ChangeSet verdichtet       — R6
-4. Dispatch auf den kanonischen State (view-unabhängig, § 11.2),
+4. Dispatch auf den SessionEditorState (view-unabhängig, § 11.2),
    dann Weiterleitung desselben ChangeSet an alle View-States,
    in derselben Reihenfolge, in einem Durchlauf
 5. Tree wird neu projiziert (I2)
-6. Scopes werden gegen den neuen Tree validiert        — R2/R3
+6. Offene Ausschnitte: Abbildung EX1–EX4 (kein Titel-Lookup).
+   Geschlossene Scopes: R2/V10. Rang: R3
 7. Relationen werden neu bestimmt                      — S3
 8. Ein Timeline-Eintrag mit Ziel-Range und Ziel-Node
 ```
@@ -370,8 +393,8 @@ Dispatch auslösen.
 
 | # | Regel |
 | - | ----- |
-| **L1** | Strukturmarker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. |
-| **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. |
+| **L1** | Strukturmarker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. In `source` ist `##` zwei Zeichen, kein Atom. |
+| **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. In `wysiwyg` blendet die Darstellung den Maskierungs-Backslash aus (`\#` liest als `#`); der Puffer behält `\#`. Löschen des sichtbaren `#` entfernt den Backslash mit. |
 | **L3** | Mehrzeiliges Einfügen wird in einem Schritt maskiert und in einem Schritt zurückgenommen. |
 | **L4** | Überschriftentext bleibt in `wysiwyg` immer editierbar, unabhängig von `policy.structureEditingInWysiwyg`. |
 | **L5** | Programmatische Änderungen umgehen die Sperren gezielt (Widgets, API, Undo). |
@@ -466,7 +489,7 @@ timeline.push({ apply, revert, reveal? , label? })
 | **U11** | Das Aufdecken fremder Einträge liegt beim Host (`reveal`) — die Komponente kann nicht aufdecken, was sie nicht rendert. |
 | **U12** | Mehrere Sessions dürfen sich eine Timeline teilen. Undo bleibt global chronologisch. |
 | **U13** | Beide Betriebsarten sind zulässig: **verschränkt** (geteilte Timeline, Editor- und Host-Aktionen in einer Reihe) und **getrennt** (Timeline je Session). **Voreingestellt ist verschränkt.** |
-| **U14** | Die CM6-eigene History ist ein *Primitiv*, das die äußere Timeline ansteuert: bei einem Texteintrag ruft sie CM6-Undo (auf dem kanonischen State, § 11.2), bei einem fremden Eintrag dessen `revert`, **ohne** die CM6-History anzufassen. |
+| **U14** | Die CM6-eigene History ist ein *Primitiv*, das die äußere Timeline ansteuert: bei einem Texteintrag ruft sie CM6-Undo (auf dem `SessionEditorState`, § 11.2), bei einem fremden Eintrag dessen `revert`, **ohne** die CM6-History anzufassen. |
 | **U15** | Damit U14 trägt, müssen Texteinträge der Timeline 1:1 und in Reihenfolge auf CM6-History-Schritte abbilden. Deshalb darf nichts sonst in die CM6-History schieben (U2). |
 | **U16** | Bei gemischtem Betrieb ist **jeder Undo-Eintrittspunkt an genau eine Timeline gebunden** — üblicherweise über die fokussierte Oberfläche. Kein Erraten, welcher Stack gemeint ist. |
 
@@ -550,8 +573,8 @@ erklärbaren Schutzmechanismen.
 
 ## 11 · Sync-Kern
 
-**Ein `EditorState` je View, ein kanonischer `EditorState` ohne View als Wahrheit —
-`ChangeSet`-Weiterleitung vom Kanon zu jeder View. Ein Stern, kein Netz, keine
+**Ein `EditorState` je View, ein `SessionEditorState` ohne View als Wahrheit —
+`ChangeSet`-Weiterleitung von der Session zu jeder View. Ein Stern, kein Netz, keine
 Selektions-Weiterleitung.**
 
 Keine offene Variantenfrage mehr. Eine frühere Fassung stellte dieser Konstruktion einen
@@ -560,7 +583,9 @@ gegenüber und wollte zwischen beiden messen. Das ist verworfen, aus zwei unabh�
 Gründen, die beide erst nach echtem Code sichtbar wurden:
 
 1. **CM6s eigenes Referenzbeispiel für mehrere Views** (`codemirror.net/examples/split`)
-   forwarded Dokumentänderungen zwischen unabhängigen States — es teilt keinen State.
+   ist das **Konzept** (unabhängige States, ein Dokument) — nicht die Verdrahtung.
+   Das Beispiel ist ein A↔B-Netz; hier geht jeder `ChangeSet` Session → jede View
+   (Stern). Views schreiben nicht einander.
 2. **Yjs' CM6-Anbindung** (`y-codemirror`) bindet ebenfalls **einen `EditorState` je View**
    an ein gemeinsames CRDT-Dokument, nicht einen geteilten `EditorState`.
 
@@ -577,37 +602,51 @@ Anforderung.
    eigenes State-Objekt hat, konfiguriert jede View sie **direkt und unabhängig** — Guards,
    die nur in `wysiwyg` gelten sollen, hängen schlicht nicht an der `source`-View-State.
    Keine Transaktions-Annotation nötig, um View-Identität zu unterscheiden.
-4. **`Text` ist eine persistente, unveränderliche Rope-Struktur.** Der kanonische State und
+4. **`Text` ist eine persistente, unveränderliche Rope-Struktur.** Der `SessionEditorState` und
    jede View-State können denselben `Text` beim Erzeugen per Referenz teilen (kein
    Kopieraufwand). Nach einer Änderung erzeugt jeder State, der sie anwendet, sein eigenes
    neues Wurzelobjekt; nur unveränderte Teilbäume bleiben strukturell geteilt —
-   Kopieraufwand je Änderung ist **O(log n)**, nicht O(n).
+   Kopieraufwand je Änderung ist **O(log n)**, nicht O(n). Ein Teildoc je View (kürzerer
+   Puffer, Offset-Übersetzung) ist verworfen: derselbe `ChangeSet` ließe sich nicht
+   durchreichen.
 5. `EditorView.update` ist **nicht reentrant** — ein Aufruf während eines laufenden Updates
    ist ein Fehler. Der Weiterleitungscode (§ 11.2, § 7.3) darf beim Durchlaufen der Views
-   keinen weiteren Dispatch auslösen.
+   keinen weiteren Dispatch auslösen. Beim Durchlauf `update` aufrufen, nie `dispatch`.
 6. Layout-Geometrie ist nur in einer separaten, per `requestAnimationFrame` geplanten
    Messphase verfügbar; synchrones Messen während eines Updates ist ausgeschlossen (bestätigt
    T13; Testkonsequenz in `SETUP.md`).
-7. **`Decoration.replace({ block: true })` ist standardmäßig inclusive** an beiden Seiten.
-   Ein Hide der Nachbar-Range schluckt sonst den Caret am Scope-Ende — Tippen in A landet
-   in B. Scope-Hide braucht `inclusiveStart: false, inclusiveEnd: false`.
-8. **Scope-Offsets sind eine Projektion**, keine eingefrorene Range. Nach jeder Dokumentänderung
-   neu aus dem Document bestimmen (oder durch den `ChangeSet` abbilden) — sonst zeigt Hide
-   auf die falsche Stelle.
+7. **Hide ist Darstellung, nicht Isolation.** `Decoration.replace` blendet den Nachbarn aus;
+   Isolation ist der Fence auf `ScopeRange` (§ 3.6). Hide braucht
+   `inclusiveStart: false, inclusiveEnd: false` — sonst schluckt die Nachbar-Range den Caret
+   an der Kante. **Kein `block: true`:** ein Block-Widget zeichnet eine leere erste Zeile
+   in Kind-Ausschnitten. **Kein `atomicRanges` auf dem Hide** — `skipAtomic` dehnt sonst
+   eine Löschung in den Nachbarn.
+8. **Der lebende Ausschnitt ist sticky** (EX1), keine Titel-Neuauflösung und keine
+   eingefrorenen Offsets. Hide, Fence, Copy und Select-All lesen dasselbe Feld (EX2).
 9. **L2 lebend:** `transactionFilter`, der `#` zu `\#` umschreibt, kämpft gegen das bereits
    ins DOM geschriebene Zeichen und maskiert den Maskierungs-Backslash mit. Lebende Eingabe
    fängt `EditorView.inputHandler` ab (ein Dispatch, `filter: false`); programmatisches
    `state.update` bleibt der `transactionFilter`. Die Maskierungsregel selbst liegt in
    einer Funktion (I6, L6).
+10. **L1 lebend:** Natives Backspace/Delete über `Decoration.replace` ist ein No-Op.
+    Die wysiwyg-Keymap löscht das ATX-Atom (Hashes + ein Trenner) bzw. das CRLF hinter
+    der Überschriftenzeile. Das ist empirisch, nicht ein zweiter Guard — die Atom-Regel
+    bleibt L1 an einer Stelle. `source` hat diese Keymap nicht.
+11. **Fence:** `changeFilter` unterdrückt `[0, from)` und `[to, length)`. Zusätzlich bleibt
+    die Überschrift, die bei `to` beginnt, auf Spalte 0 (oder sie ist ganz weg) — sonst
+    klebt Backspace an der Kante `##` an die vorige Zeile und der Nachbar erscheint im
+    Ausschnitt. Sync-annotierte Transaktionen umgehen den Fence, damit der Stern
+    weiterleiten kann.
 
 ### 11.2 Ablauf
 
-Kanonischer State ohne View ist die Wahrheit. Jede View-State wird **vom Kanon aus**
+`SessionEditorState` ohne View ist die Wahrheit. Jede View-State wird **von der Session aus**
 fortgeschrieben, nie von einer anderen View-State aus (Ablauf im Detail: § 7.3).
+`examples/split` liefert das Konzept, nicht das A↔B-Netz.
 
 | | |
 | - | - |
-| Document | je View; Weiterleitung vom Kanon aus, nie zwischen Views |
+| Document | je View; Weiterleitung von der Session aus, nie zwischen Views |
 | Timeline | zentral geführt, View-States delegieren |
 | Selektion | je View unabhängig — **nicht weitergeleitet**, keine Sonderbehandlung nötig |
 | Guards, Keymap | je View direkt konfiguriert (§ 11.1 Punkt 3) |
@@ -618,24 +657,28 @@ N-fache statt einfache Berechnung abgeleiteter StateField-Werte. Zu messen, nich
 
 ### 11.3 Verifikation
 
-Drei Fragen, empirisch geprüft — Spike `spikes/phase-0/`, Tests
+G1a/G1b, G2 und G3, empirisch geprüft — Spike `spikes/phase-0/` in **zwei Szenen**, Tests
 `tests/unit/spike/g-questions.test.ts` und `tests/behaviour/phase-0-gate.spec.ts` —
-statt gesetzt:
+statt gesetzt.
+
+Szene 1: gleicher Ausschnitt, `source` | `wysiwyg`. Szene 2: A subtree | A1 own | A2 own
+(containing / disjoint). Dokument generisch, keine Domäne.
 
 | # | Frage | Ergebnis |
 | - | ----- | -------- |
-| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden** (nach Nacharbeit am Spike). Kanon ohne View; je View ein State; Document-Strings gleich, Marker bleiben im String. Scope-Ranges werden nach jeder Änderung neu projiziert (§ 11.1.8). Hide mit `inclusiveStart/End: false` (§ 11.1.7). Insert am letzten Zeichen von A (`to - 1`) bleibt in A; B zeigt es nicht. Select-All-Copy aus A ist auf Alpha geclippt, enthält nicht `beta body` (Clipboard ist nicht dasselbe wie Hide — eigener Handler, eine Stelle). |
-| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden** (nach Nacharbeit). Filter/Handler nur auf der wysiwyg-Konfiguration. Source lässt `#` durch. **Lebend:** vier `#`-Tasten → `\#\#\#\#`, nicht `\\####`. Dazu `inputHandler` + `filter: false` (§ 11.1.9, L2). Programmatisch maskiert der `transactionFilter` in einem Durchgang (L3). L1 erfasst den ganzen Marker. Keine View-Id-Annotation. |
-| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden.** Selektion wird nicht weitergeleitet. Selektions-Transaktion in A: B's Caret numerisch unverändert. Tippen in A (lebend und programmatisch): Document-Strings gleich; B's Caret wird durch den `ChangeSet` abgebildet, nie durch A's Selektion ersetzt. |
+| **G1a** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation, ohne Presentation im Document zu speichern? | **Bestanden** (Szene 1). `SessionEditorState` ohne View; je View ein State, derselbe volle `Text`. Document-Strings gleich; Marker bleiben im String. `source`-DOM zeigt `#`, `wysiwyg`-DOM nicht. Eine am Dokumentende eingefügte Überschrift bleibt sichtbar, wenn der Ausschnitt das Ende einschließt. |
+| **G1b** | Zeigen zwei Views dasselbe Document in unterschiedlichem Scope, ohne Isolation mit Hide zu verwechseln? | **Bestanden** (Szene 2). Sticky `ScopeRange` (EX1/EX2), nicht Titel-Neuauflösung. Hide inklusivitätsfrei, inline, ohne `atomicRanges` (§ 11.1.7). Insert an `to - 1` und an `from` bleibt im Ausschnitt; Enter an `from` leakt keine Zeile nur in den Vorfahren. Fence hält die nächste Überschrift auf Spalte 0. Select-All-Copy clippt auf den Ausschnitt (Clipboard ≠ Hide). Selbst-Leeren bleibt gemountet (EX3); fremdes Leeren → `scopeLost`, kein Wiederanwachsen (EX4). Source darf ein `#` von `##` einzeln löschen. |
+| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View? | **Bestanden.** Filter/Handler/L1-Keymap nur auf der wysiwyg-Konfiguration. Source lässt `#` durch und behandelt `##` nicht als Atom. **L2 lebend:** vier `#`-Tasten → `\#\#\#\#`, nicht `\\####` (`inputHandler` + `filter: false`, § 11.1.9). „Ohne Tasten-Sonderfall“ betraf diesen L2-Pfad, nicht L1: natives Delete über Replace ist ein No-Op, die wysiwyg-Keymap ist empirisch (§ 11.1.10). Atom = Hashes + ein Trenner; Extra-Spaces sind Titel (L4). `\#` liest in wysiwyg als `#`; Löschen des sichtbaren `#` nimmt den Backslash mit. Keine View-Id-Annotation. |
+| **G3** | Bleibt die Selektion der anderen View unberührt? | **Bestanden** (Szene 1, identical range). Selektion wird nicht weitergeleitet. Selektions-Transaktion in A: B's Caret numerisch unverändert. Tippen in A (lebend und programmatisch): Document-Strings gleich; B's Caret wird durch den `ChangeSet` abgebildet, nie durch A's Selektion ersetzt. |
 
-Fällt eine dieser drei künftig um — etwa bei einer echten Regression —, ist **diese Sektion**
+Fällt eine dieser Fragen künftig um — etwa bei einer echten Regression —, ist **diese Sektion**
 zu revidieren, nicht ein Rückfall auf geteilten State, der nicht mehr Teil des Modells ist.
 
 ### 11.4 Live-Kollaboration (post-MVP, nicht gebaut)
 
 Nicht Gegenstand dieser Fassung (§ 1), aber ein weiterer Beleg für die getroffene Wahl: Ein
 CRDT (Yjs) bindet sich pro View an ein gemeinsames Dokument — genau das Muster, das dieser
-Sync-Kern bereits hat (State je View, ein gemeinsamer Kanon). Der Weiterleitungscode aus
+Sync-Kern bereits hat (State je View, ein `SessionEditorState`). Der Weiterleitungscode aus
 § 11.2 wäre der Teil, der später durch eine Yjs-Bindung ersetzt oder ergänzt würde; an
 Guards, Presentation und der Je-View-Konfiguration ändert sich dabei nichts.
 
@@ -659,7 +702,7 @@ Entwurf. Alles nicht Aufgeführte ist intern.
 | `session.apply(action)` | Kommando — Struktur-/Nicht-Text-Aktion (§ 7.3) |
 | `session.markPersisted(nodeId?)` | Kommando |
 | `session.replaceDocument(doc)` | Kommando — U7 |
-| `session.subscribe(fn)` | Ereignis — ein Kanal für alle Zustandsänderungen |
+| `session.subscribe(fn)` | Ereignis — ein Kanal für alle Zustandsänderungen, einschließlich `scopeLost` (EX4) |
 | `session.createView(opts)` | Factory |
 
 ### View
@@ -701,6 +744,7 @@ visibleNode-Erkennung · Guards · Widgets · Navigationsauflösung.
 | Suchleiste **global** | Trefferliste der fokussierten View | `view.find(q, {mode:'document'})` |
 | Struktur-Aktionen | `tree` | `session.apply` |
 | Speicher-Anzeige | `isDirty` je Node | `session.markPersisted` |
+| Offene Views / Tabs | `scopeLost` (EX4) | `view.destroy()` — Host schließt, kein Chrome in der Komponente |
 
 **Zustand und Logik liegen innen, die Bedienoberfläche außen.** Kein äußeres Element führt
 eigenen Zustand.
@@ -795,10 +839,15 @@ darf auf Zeit warten (I5).
 | T20 | `containing`: neue Überschrift in der inneren View erscheint als neue Node in der äußeren (R1). |
 | T21 | Navigationsklick wirkt nur auf die fokussierte View. |
 | T22 | `session.activeNode` folgt dem Fokuswechsel, ohne dass ein Scope sich ändert. |
-| T23 | Scope-Node entfernt → Fallback auf überlebenden Vorfahren (R2). |
+| T23 | Offene View: fremdes Leeren des Ausschnitts → `scopeLost` einmal, kein Fallback auf Vorfahr oder Geschwister, späteres Tippen im Vorfahren hängt den Ausschnitt nicht wieder an (EX4/EX5). |
 | T24 | Rangänderung der Scope-Node → Scope bleibt gültig (R3). |
 | T25 | Node wandert von Range A nach Range B → beide rendern neu, keine Neumontage (R4). |
 | T26 | Relation zweier Views ändert sich durch eine Strukturänderung ohne Scope-Zuweisung (S3). |
+| T109 | Tippen und Enter an `ScopeRange.from` bleiben im Ausschnitt; keine Geisterzeile nur im Vorfahren (EX1). |
+| T110 | Selbst-Leeren (Select-All + Delete) bleibt gemountet und editierbar; kein `scopeLost` (EX3). |
+| T111 | Backspace an der exklusiven Kante klebt die nächste Überschrift nicht an die vorige Zeile; der Nachbar erscheint nicht im Ausschnitt (§ 11.1.11). |
+| T112 | Select-All-Copy ist auf den Ausschnitt geclippt — Clipboard ist nicht Hide (EX2). |
+| T113 | In `source` ist `##` zwei Zeichen: ein `#` lässt sich einzeln löschen (L1). |
 
 ### Timeline und Dirty
 
@@ -827,7 +876,10 @@ darf auf Zeit warten (I5).
 | T39 | Dasselbe für Entf vorwärts, Enter an der Grenze, Einfügen am Dokumentanfang. |
 | T40 | Getippte Markdown-Syntax bleibt Literal; in der parallelen `source`-View maskiert sichtbar. |
 | T41 | Mehrzeiliges Einfügen: ein Maskierungsschritt, ein Undo-Schritt. |
-| T42 | Löschen am Strukturmarker erfasst die atomare Einheit oder nichts. |
+| T42 | Löschen am Strukturmarker erfasst die atomare Einheit oder nichts. ATX-Atom = `#{1,6}` plus genau ein Trenner; Extra-Spaces sind Titel und einzeln löschbar (L1/L4). |
+| T114 | Vier lebend getippte `#` in `wysiwyg` → `\#\#\#\#`, nicht `\\####` (L2, § 11.1.9). |
+| T115 | Wysiwyg-Delete am Ende der Überschriftenzeile entfernt das folgende CRLF, nicht den Nachbarn (§ 11.1.10). |
+| T116 | Löschen des sichtbaren `#` von `\#` in `wysiwyg` entfernt den Maskierungs-Backslash mit (L2). |
 | **T43** | `policy.structureEditingInWysiwyg: 'locked'` → Strukturänderung abgelehnt, Überschriftentext editierbar (L4). Mit `'allowed'` → Strukturänderung zulässig, Regeln R6/R7 gelten unverändert. **Beide Belegungen werden geprüft.** |
 | T44 | Undo darf gesperrte Bereiche verändern (U6). |
 | T64 | Caret lässt sich in `wysiwyg` nicht in den Frontmatter-Rohtext setzen (FM1). |
@@ -971,33 +1023,31 @@ welchem n die Empfehlung kippt.
 
 ## 16 · Phasen
 
-**Zum Sync-Kern (§ 11) gibt es keine offene Variantenfrage mehr** — kanonischer State ohne
+**Zum Sync-Kern (§ 11) gibt es keine offene Variantenfrage mehr** — `SessionEditorState` ohne
 View, ein `EditorState` je View, Dokument-Weiterleitung, keine Selektions-Weiterleitung.
 Empirisch geprüft (§ 11.3), nicht gesetzt. Die Phasen bauen entsprechend in einem Zug, ohne
 Torstelle vor dem ersten Anwendungscode.
 
 | Phase | Inhalt | Ergebnis |
 | ----- | ------ | -------- |
-| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (kanonischer State, Dokument-Weiterleitung, keine Selektions-Weiterleitung) | T1–T37, T57–T63, T83–T108 grün |
+| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
 | **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
 | **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig, strukturelle Listenansicht | T38–T56, T64–T82 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
 ### 16.1 Verifikation des Sync-Kerns
 
-Drei Fragen, empirisch beantwortet (§ 11.3) statt als Tor vor Phase 1 gesetzt.
-Belege: Spike `spikes/phase-0/` (Stern: Kanon ohne View, ein State je View, `ChangeSet`
-nur vom Kanon aus). Tests: `tests/unit/spike/g-questions.test.ts` (ohne DOM) und
-`tests/behaviour/phase-0-gate.spec.ts` (lebende `EditorView`, Tastatur nicht nur
-`state.update` — die drei ersten Unit-only-Belege haben G1e/G2b nicht gesehen).
+G1a/G1b, G2, G3 empirisch beantwortet (§ 11.3) statt als Tor vor Phase 1 gesetzt.
+Belege: Spike `spikes/phase-0/` — Stern: `SessionEditorState` ohne View, ein State je View,
+derselbe volle `Text`, `ChangeSet` nur von der Session aus. Zwei Szenen (identical
+Presentation vs. containing/disjoint Scope). Tests: `tests/unit/spike/g-questions.test.ts`
+(ohne DOM) und `tests/behaviour/phase-0-gate.spec.ts` (lebende `EditorView`, Tastatur nicht
+nur `state.update`).
 
-| # | Frage | Ergebnis |
-| - | ----- | -------- |
-| **G1** | Zeigen zwei Views dasselbe Document in unterschiedlicher Presentation und unterschiedlichem Scope, ohne Presentation im Document zu speichern? | **Bestanden.** Nach den Live-Bugs: Scope-Range ist Projektion des aktuellen Documents, nicht eingefroren; Hide `inclusiveStart/End: false`; letzte editierbare Position ist `renderRange.to - 1`. Insert dort bleibt in A (G1e). Tippen in B's Rumpf erscheint nicht in A's Slice (G1f). Select-All-Copy aus A enthält `alpha body`, nicht `beta body` (G1g — Clipboard-Handler auf die Section geclippt). Marker bleiben im Document; `source`-DOM zeigt `#`, `wysiwyg`-DOM nicht (G1c). |
-| **G2** | Greifen die wysiwyg-Guards L1–L3 nur in der wysiwyg-View, ohne Tasten-Sonderfall? | **Bestanden.** `transactionFilter` + `inputHandler` nur an wysiwyg. Vier lebend getippte `#` → `\#\#\#\#`, nicht `\\####` (G2b). Ursache war: Filter maskiert `#` zu `\#`, das DOM hat schon `#`, zweiter Durchgang maskiert den Backslash. Abhilfe: `inputHandler` fängt ab, ein Dispatch mit `filter: false`; `escapeMarkdown` ist die eine Maskierungsfunktion (L2, I6). Source lässt `#` unmaskiert. |
-| **G3** | Bleibt die Selektion der anderen View bei `disjoint` unberührt? | **Bestanden.** Lebend (G3c) und programmatisch: B's Caret wird nicht durch A's ersetzt. Abbildung durch den `ChangeSet` bleibt. |
+Ergebnis und Nacharbeit: § 11.3. Nicht Gegenstand des Spikes und in Phase 1 zu belegen:
+Undo nach `scopeLost`, IME gegen L2-`inputHandler`, CommonMark-Einrückung vor `#`.
 
-Fällt eine der drei Fragen bei einer echten Regression künftig um, ist § 11 zu revidieren.
+Fällt eine der Fragen bei einer echten Regression künftig um, ist § 11 zu revidieren.
 
 ### 16.2 Warum das Budget absolut sein muss
 
