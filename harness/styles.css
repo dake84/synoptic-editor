@@ -122,6 +122,15 @@ legend {
 .dirty {
   color: #a40;
 }
+.visible-id {
+  font-weight: 700;
+  background: #e8f0ff;
+  padding: 2px 6px;
+}
+#nav-panel .is-visible {
+  font-weight: 700;
+  background: #e8f0ff;
+}
 .focused {
   outline: 2px solid #246;
 }

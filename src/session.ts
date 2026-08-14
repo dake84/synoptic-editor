@@ -64,6 +64,7 @@ export type SessionEvent =
   | { type: "tree" }
   | { type: "views" }
   | { type: "focus" }
+  | { type: "visible" }
   | { type: "tracked"; id: TrackedPositionId }
   | { type: "scopeLost"; viewId: string };
 
@@ -529,6 +530,7 @@ export class Session {
           slot.lastScrollCause = "restore";
           scrollToPos(ev, scroll.from, "restore");
         }
+        ev.scrollDOM.addEventListener("scroll", () => session.scheduleMeasure());
         session.scheduleMeasure();
       },
       destroy() {
@@ -684,16 +686,20 @@ export class Session {
   private measureVisible(): void {
     if (this.sync.isApplying) this.layoutDuringUpdate += 1;
     this.measuring = true;
+    let changed = false;
     try {
       for (const slot of this.views.values()) {
         const ev = this.sync.editorView(slot.id);
         if (!ev) continue;
-        slot.visibleNode = visibleNodeFromView(ev, this.treeState);
+        const next = visibleNodeFromView(ev, this.treeState);
+        if (next !== slot.visibleNode) changed = true;
+        slot.visibleNode = next;
         this.captureScroll(slot, ev);
       }
     } finally {
       this.measuring = false;
     }
+    if (changed) this.emit({ type: "visible" });
   }
 
   private emit(e: SessionEvent): void {

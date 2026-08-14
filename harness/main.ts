@@ -105,7 +105,7 @@ function paintViewBar(id: string): void {
       <button type="button" data-cmd="close" data-id="${id}">close</button>
       <button type="button" data-cmd="save" data-id="${id}">getState</button>
       <span>cause ${session.lastScrollCause(id) ?? "—"}</span>
-      <span>visible ${handle?.visibleNode ?? "—"}</span>
+      <span class="visible-id">visibleNodeId ${handle?.visibleNode ?? "—"}</span>
     </div>
     <div class="row">
       include
@@ -148,16 +148,18 @@ function paintNav(): void {
     const n = session.tree.nodes.get(nodeId);
     if (!n) return "";
     const dirty = session.isDirty(nodeId) ? " dirty" : "";
+    const vis = session.visibleNode === nodeId ? " is-visible" : "";
     const mark = session.isDirty(nodeId) ? "*" : session.isSubtreeDirty(nodeId) ? "+" : "";
     const kids = n.childIds.map((c) => walk(c, depth + 1)).join("");
-    return `<button type="button" data-cmd="nav" data-node="${n.id}" style="padding-left:${8 + depth * 12}px" class="${dirty}">${mark}${n.id} ${n.title}</button>${kids}`;
+    return `<button type="button" data-cmd="nav" data-node="${n.id}" style="padding-left:${8 + depth * 12}px" class="${dirty}${vis}">${mark}${n.id} ${n.title}${vis ? " · visibleNodeId" : ""}</button>${kids}`;
   };
   panel.innerHTML = `
     <h2>navigateTo</h2>
     <div class="crumb">
       ${crumbs.map((c) => `<button type="button" data-cmd="nav" data-node="${c}">${c}</button>`).join(" / ") || "—"}
     </div>
-    <p>active ${active ?? "—"} · visible ${visible ?? "—"}</p>
+    <p>activeNode ${active ?? "—"}</p>
+    <p class="visible-id">session.visibleNodeId ${visible ?? "—"}</p>
     ${session.tree.roots.map((r) => walk(r, 0)).join("")}
   `;
 }
@@ -190,6 +192,7 @@ function paintInfo(): void {
 
 function paintSessionBar(): void {
   document.getElementById("session-bar")!.innerHTML = `
+    <span class="visible-id">visibleNodeId ${session.visibleNode ?? "—"}</span>
     <button type="button" data-cmd="undo">undo</button>
     <button type="button" data-cmd="redo">redo</button>
     <button type="button" data-cmd="persist">markPersisted</button>
