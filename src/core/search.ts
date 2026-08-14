@@ -2,8 +2,9 @@
  * Search projection (SPEC.md § 10). One place (I6): source vs wysiwyg, prose vs metadata.
  */
 
-import { findChips } from "./chips.js";
+import { findChips, type InlineRefStyle } from "./chips.js";
 import { fieldByKey, parseFrontmatterBlock } from "./frontmatter.js";
+import { findHtmlComments, overlapsAny } from "./html-comments.js";
 import { projectTree } from "./tree.js";
 import type { Range, StructureSchema, Tree } from "./types.js";
 
@@ -26,6 +27,8 @@ export interface SearchOptions {
   schema: StructureSchema;
   /** YAML keys rendered as pills — only these are searchable as metadata in wysiwyg (P5). */
   pillFields: readonly string[];
+  /** Chip syntax for this session (W6). Default `attribute-block`. */
+  inlineRefStyle?: InlineRefStyle;
   tree?: Tree;
 }
 
@@ -75,32 +78,59 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
       }
     }
 
-    // Heading title (no markers) + body until ownRange end, skipping FM and chip attrs
+    // Heading title (no markers) + body until ownRange end, skipping FM, comments, chip chrome
     const titleFrom = Math.max(headingMarkerEnd(doc, node.heading.from), from);
     const titleTo = Math.min(node.heading.to, to);
     let bodyFrom = Math.max(node.heading.to, from);
     while (bodyFrom < ownTo && (doc[bodyFrom] === "\n" || doc[bodyFrom] === "\r")) bodyFrom += 1;
     // Skip past frontmatter if somehow overlapping (ownRange usually starts at FM)
     const proseStart = Math.max(titleFrom, node.frontmatter ? node.frontmatter.to : titleFrom);
-    // Title is always between heading marker and heading.to
-    if (titleFrom < titleTo) segments.push({ from: titleFrom, to: titleTo, class: "prose" });
+    const comments = findHtmlComments(doc, ownFrom, ownTo);
+    if (titleFrom < titleTo) {
+      segments.push(...proseMinusHoles(titleFrom, titleTo, comments, "prose"));
+    }
 
     const bodyStart = Math.max(bodyFrom, proseStart, from);
     if (bodyStart >= ownTo) continue;
 
-    const chips = findChips(doc, bodyStart, ownTo);
-    let cursor = bodyStart;
+    const style = opts.inlineRefStyle ?? "attribute-block";
+    const chips = findChips(doc, bodyStart, ownTo, style).filter((c) => !overlapsAny(c, comments));
+    const holes: Range[] = comments.map((c) => ({ from: c.from, to: c.to }));
     for (const chip of chips) {
-      if (chip.from > cursor) segments.push({ from: cursor, to: chip.from, class: "prose" });
-      if (chip.labelFrom < chip.labelTo) {
-        segments.push({ from: chip.labelFrom, to: chip.labelTo, class: "prose" });
-      }
-      cursor = chip.to;
+      if (chip.from < chip.labelFrom) holes.push({ from: chip.from, to: chip.labelFrom });
+      if (chip.labelTo < chip.to) holes.push({ from: chip.labelTo, to: chip.to });
     }
-    if (cursor < ownTo) segments.push({ from: cursor, to: ownTo, class: "prose" });
+    segments.push(...proseMinusHoles(bodyStart, ownTo, holes, "prose"));
   }
 
   return mergeAdjacent(segments.filter((s) => s.from < s.to));
+}
+
+/** Punch `holes` out of `[from, to)` and emit the leftover as segments (H1/W2). */
+function proseMinusHoles(
+  from: number,
+  to: number,
+  holes: readonly Range[],
+  hitClass: SearchHitClass,
+): Segment[] {
+  const clipped = holes
+    .map((h) => ({ from: Math.max(h.from, from), to: Math.min(h.to, to) }))
+    .filter((h) => h.from < h.to)
+    .sort((a, b) => a.from - b.from || a.to - b.to);
+  const merged: Range[] = [];
+  for (const h of clipped) {
+    const prev = merged[merged.length - 1];
+    if (prev && h.from <= prev.to) prev.to = Math.max(prev.to, h.to);
+    else merged.push({ ...h });
+  }
+  const out: Segment[] = [];
+  let cursor = from;
+  for (const h of merged) {
+    if (cursor < h.from) out.push({ from: cursor, to: h.from, class: hitClass });
+    cursor = Math.max(cursor, h.to);
+  }
+  if (cursor < to) out.push({ from: cursor, to, class: hitClass });
+  return out;
 }
 
 function mergeAdjacent(segments: Segment[]): Segment[] {

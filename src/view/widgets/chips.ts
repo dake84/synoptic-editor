@@ -1,60 +1,81 @@
 /**
- * Inline reference chips (SPEC.md § 8.3): label stays text; attrs hidden (W1/W2).
+ * Inline reference chips (SPEC.md § 8.3): label stays text; chrome hidden (W1/W2).
  */
 
 import { RangeSetBuilder, StateField } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
-import { findChips } from "../../core/chips.js";
+import { findChips, type InlineRefStyle } from "../../core/chips.js";
+import { findHtmlComments, overlapsAny } from "../../core/html-comments.js";
 import type { ScopeRange } from "../scope.js";
 
 const hideAttrs = Decoration.replace({});
 const atomMark = Decoration.mark({});
 
-export function chipDecorationField(rangeField: StateField<ScopeRange>): StateField<DecorationSet> {
+export function chipDecorationField(
+  rangeField: StateField<ScopeRange>,
+  style: InlineRefStyle,
+): StateField<DecorationSet> {
   return StateField.define<DecorationSet>({
     create(state) {
-      return buildChipHide(state.doc.toString(), state.field(rangeField));
+      return buildChipHide(state.doc.toString(), state.field(rangeField), style);
     },
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
       if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
-      return buildChipHide(tr.state.doc.toString(), r);
+      return buildChipHide(tr.state.doc.toString(), r, style);
     },
     provide: (field) => EditorView.decorations.from(field),
   });
 }
 
-export function chipAtomField(rangeField: StateField<ScopeRange>): StateField<DecorationSet> {
+export function chipAtomField(
+  rangeField: StateField<ScopeRange>,
+  style: InlineRefStyle,
+): StateField<DecorationSet> {
   return StateField.define<DecorationSet>({
     create(state) {
-      return buildChipAtoms(state.doc.toString(), state.field(rangeField));
+      return buildChipAtoms(state.doc.toString(), state.field(rangeField), style);
     },
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
       if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
-      return buildChipAtoms(tr.state.doc.toString(), r);
+      return buildChipAtoms(tr.state.doc.toString(), r, style);
     },
     provide: (field) => EditorView.atomicRanges.of((view) => view.state.field(field)),
   });
 }
 
-function buildChipHide(doc: string, r: ScopeRange): DecorationSet {
-  if (r.lost) return Decoration.none;
+function visibleChips(doc: string, r: ScopeRange, style: InlineRefStyle) {
+  if (r.lost) return [];
+  const comments = findHtmlComments(doc, r.from, r.to);
+  return findChips(doc, r.from, r.to, style).filter((c) => !overlapsAny(c, comments));
+}
+
+function hideRangeSlices(doc: string, from: number, to: number, builder: RangeSetBuilder<Decoration>): void {
+  let pos = from;
+  while (pos < to) {
+    const nl = doc.indexOf("\n", pos);
+    const end = nl < 0 || nl + 1 > to ? to : nl + 1;
+    if (end > pos) builder.add(pos, end, hideAttrs);
+    pos = end;
+  }
+}
+
+function buildChipHide(doc: string, r: ScopeRange, style: InlineRefStyle): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  for (const chip of findChips(doc, r.from, r.to)) {
-    // Hide `[` `]` and `{attrs}` — keep label text (O9/F7)
-    if (chip.from < chip.labelFrom) builder.add(chip.from, chip.labelFrom, hideAttrs);
-    if (chip.labelTo < chip.to) builder.add(chip.labelTo, chip.to, hideAttrs);
+  for (const chip of visibleChips(doc, r, style)) {
+    // Hide chrome — keep label text (O9/F7). Split on lines so replace stays inline.
+    if (chip.from < chip.labelFrom) hideRangeSlices(doc, chip.from, chip.labelFrom, builder);
+    if (chip.labelTo < chip.to) hideRangeSlices(doc, chip.labelTo, chip.to, builder);
   }
   return builder.finish();
 }
 
-function buildChipAtoms(doc: string, r: ScopeRange): DecorationSet {
-  if (r.lost) return Decoration.none;
+function buildChipAtoms(doc: string, r: ScopeRange, style: InlineRefStyle): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  for (const chip of findChips(doc, r.from, r.to)) {
+  for (const chip of visibleChips(doc, r, style)) {
     if (chip.from < chip.to) builder.add(chip.from, chip.to, atomMark);
   }
   return builder.finish();

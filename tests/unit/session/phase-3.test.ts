@@ -26,6 +26,7 @@ function session(policy?: {
   structureEditingInWysiwyg?: "locked" | "allowed";
   frontmatterInWysiwyg?: "form" | "hidden";
   pillFields?: string[];
+  inlineRefStyle?: "attribute-block" | "html-ref";
 }) {
   return createSession({
     doc: DOC,
@@ -180,7 +181,7 @@ describe("phase 3 chips pills search replace", () => {
     expect(s.scopeOf(v.id).nodeId).toBe("n0");
   });
 
-  /** @covers T68, T69, F7 — prose hits are marked and selected as substring */
+  /** @covers T68, T69, F7 */
   it("find highlights and selects prose hits; metadata does not move caret into yaml", () => {
     const s = session();
     const v = s.createView({ scope: { nodeId: "n0", include: "subtree" }, presentation: "wysiwyg" });
@@ -341,5 +342,58 @@ Body.
     v.find("end", { mode: "view" });
     v.replaceAll("END");
     expect(s.document).toContain("END");
+  });
+});
+
+describe("phase 3 html-ref and comments via session", () => {
+  /** @covers T119, T120, W1, W2, W6, RP1 */
+  it("html-ref find and replace go through the view handle", () => {
+    const doc = `---
+id: n0
+---
+
+# Root
+
+See <item-ref id="a">Alpha</item-ref> end.
+`;
+    const s = createSession({
+      doc,
+      schema: FIXTURE_SCHEMA,
+      policy: { inlineRefStyle: "html-ref", pillFields: [] },
+    });
+    const w = s.createView({ scope: { nodeId: "n0", include: "own" }, presentation: "wysiwyg" });
+    const src = s.createView({ scope: { nodeId: "n0", include: "own" }, presentation: "source" });
+    expect(w.find("Alpha", { mode: "view" })).toHaveLength(1);
+    expect(w.find("item-ref", { mode: "view" })).toHaveLength(0);
+    expect(w.find('id="a"', { mode: "view" })).toHaveLength(0);
+    expect(src.find("item-ref", { mode: "view" }).length).toBeGreaterThan(0);
+
+    w.find("Alpha", { mode: "view" });
+    w.replaceAll("Beta");
+    expect(s.document).toContain('<item-ref id="a">Beta</item-ref>');
+    expect(s.document).not.toContain(">Alpha<");
+  });
+
+  /** @covers T122, T123, H1 */
+  it("wysiwyg find skips comment text and chips inside comments", () => {
+    const doc = `---
+id: n0
+---
+
+# Root
+
+Visible <!-- hidden-token <item-ref id="a">Alpha</item-ref> --> after.
+`;
+    const s = createSession({
+      doc,
+      schema: FIXTURE_SCHEMA,
+      policy: { inlineRefStyle: "html-ref" },
+    });
+    const w = s.createView({ scope: { nodeId: "n0", include: "own" }, presentation: "wysiwyg" });
+    const src = s.createView({ scope: { nodeId: "n0", include: "own" }, presentation: "source" });
+    expect(w.find("hidden-token", { mode: "view" })).toHaveLength(0);
+    expect(w.find("Alpha", { mode: "view" })).toHaveLength(0);
+    expect(w.find("Visible", { mode: "view" })).toHaveLength(1);
+    expect(src.find("hidden-token", { mode: "view" }).length).toBeGreaterThan(0);
   });
 });

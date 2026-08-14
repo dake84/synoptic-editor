@@ -33,7 +33,7 @@ test.describe("phase 3 harness", () => {
     await page.goto("http://127.0.0.1:4173/");
   });
 
-  /** @covers T65, FM3 — UI path: click must focus input, not place caret under the form */
+  /** @covers T65, FM3 */
   test("form click focuses input and commits on change", async ({ page }) => {
     const viewId = await page.evaluate(() => {
       const h = (window as unknown as { __harness: Harness }).__harness;
@@ -62,7 +62,7 @@ test.describe("phase 3 harness", () => {
     expect(doc).toContain("\\#");
   });
 
-  /** @covers T68, F7 — prose hits highlighted in the editor */
+  /** @covers T68, F7 */
   test("find marks prose hits in the DOM and scrolls", async ({ page }) => {
     const n0Wys = await page.evaluate(() => {
       const h = (window as unknown as { __harness: Harness }).__harness;
@@ -77,7 +77,7 @@ test.describe("phase 3 harness", () => {
     await expect(marks.first()).toContainText("Alpha");
   });
 
-  /** @covers T48 — harness find-out must survive paint() rebuild */
+  /** @covers T48 */
   test("find view reports hits in find-out", async ({ page }) => {
     await page.locator('[name="find-q"]').fill("Alpha");
     await page.locator('[data-cmd="find"][data-mode="view"]').click();

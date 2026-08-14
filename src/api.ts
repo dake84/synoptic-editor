@@ -3,6 +3,7 @@
  * Runtime extras on the Session class are not part of this contract.
  */
 
+import type { InlineRefStyle } from "./core/chips.js";
 import type { SearchHit, SearchHitClass } from "./core/search.js";
 import type { StructureAction } from "./core/structure.js";
 import type { ForeignTimelineCommand } from "./core/timeline.js";
@@ -16,11 +17,13 @@ export type { StructureAction } from "./core/structure.js";
 export type { TrackedPositionId, ResolvedTrackedPosition } from "./core/tracked-position.js";
 export type { IncludeMode, Presentation } from "./view/presentation.js";
 export type { ForeignTimelineCommand } from "./core/timeline.js";
+export type { InlineRefStyle } from "./core/chips.js";
 
 export interface Policy {
   structureEditingInWysiwyg?: "locked" | "allowed";
   frontmatterInWysiwyg?: "form" | "hidden";
   pillFields?: string[];
+  inlineRefStyle?: InlineRefStyle;
 }
 
 /** Host-facing timeline (U9–U13). Text undo goes through `session.undo` (I3). */

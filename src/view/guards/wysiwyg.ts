@@ -5,7 +5,8 @@
 
 import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { findChips } from "../../core/chips.js";
+import { findChips, type InlineRefStyle } from "../../core/chips.js";
+import { findHtmlComments } from "../../core/html-comments.js";
 import { projectTree } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
@@ -120,8 +121,9 @@ export function snapOutOfHeadingMarkers(sel: EditorSelection, doc: string): Edit
   return EditorSelection.create(ranges, sel.mainIndex);
 }
 
-export function wysiwygGuards(opts?: { structureLocked?: boolean }): Extension {
+export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle?: InlineRefStyle }): Extension {
   const structureLocked = opts?.structureLocked ?? true;
+  const inlineRefStyle = opts?.inlineRefStyle ?? "attribute-block";
   return [
     Prec.highest(
       keymap.of([
@@ -193,14 +195,15 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean }): Extension {
       const startDoc = tr.startState.doc.toString();
       const markers = headingMarkers(startDoc);
       const pairs = maskPairs(startDoc, 0, startDoc.length);
-      const chips = findChips(startDoc).map((c) => ({ from: c.from, to: c.to }));
+      const comments = findHtmlComments(startDoc);
+      const chips = findChips(startDoc, 0, startDoc.length, inlineRefStyle).map((c) => ({ from: c.from, to: c.to }));
       let rewritten = false;
       const pieces: { from: number; to: number; insert: string }[] = [];
 
       tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
         let from = fromA;
         let to = toA;
-        for (const mk of [...markers, ...pairs, ...chips]) {
+        for (const mk of [...markers, ...pairs, ...comments, ...chips]) {
           const overlaps = from < mk.to && to > mk.from;
           const covers = from <= mk.from && to >= mk.to;
           if (overlaps && !covers) {

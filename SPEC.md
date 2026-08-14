@@ -139,7 +139,7 @@ session.isSubtreeDirty(n) := text(subtreeRange(n)) ≠ baseline(subtreeRange(n))
 | Presentation | Verhalten |
 | ------------ | --------- |
 | `source` | Rohtext inklusive Frontmatter und aller Marker. |
-| `wysiwyg` | Marker versteckt, Frontmatter als Formular-Widget (§ 8.2), Inline-Referenzen als Widgets (§ 8.3), Metadaten-Pills (§ 8.4), Strukturebenen typografisch ausgezeichnet. |
+| `wysiwyg` | Marker versteckt, Frontmatter als Formular-Widget (§ 8.2), Inline-Referenzen als Widgets (§ 8.3), Metadaten-Pills (§ 8.4), HTML-Kommentare ausgeblendet (§ 8.5), Strukturebenen typografisch ausgezeichnet. |
 
 Der Puffer ist in beiden identisch.
 
@@ -253,6 +253,7 @@ Policy = {
   structureEditingInWysiwyg?: 'locked' | 'allowed',   // Default 'locked'
   frontmatterInWysiwyg?:      'form'   | 'hidden',    // Default 'form'
   pillFields?:                string[],               // Default [] — YAML keys shown as pills (§ 8.4)
+  inlineRefStyle?:            'attribute-block' | 'html-ref',  // Default 'attribute-block' (§ 8.3)
 }
 ```
 
@@ -260,6 +261,7 @@ Policy = {
 undurchsichtiger Bezeichner für den Host. `grain` einer View ist eine `rank`-Angabe.
 `pillFields` wählt, welche Frontmatter-Schlüssel zusätzlich als Pills unter der Überschrift
 erscheinen (P5). Nicht gelistete Schlüssel bleiben nur im Formular (FM7).
+`inlineRefStyle` wählt **eine** Chip-Syntax je Session (W6). Die Styles mischen sich nicht.
 
 **Zur Konfigurierbarkeit von L5/R5:** Strukturbearbeitung in `wysiwyg` zu sperren ist
 **Host-Politik, keine Invariante**. Die Komponente muss sperren *können*; ob sie es tut,
@@ -431,17 +433,33 @@ FM7 ist eine bewusste Entscheidung, keine technische Grenze — Begründung und 
 Im Gegensatz zum Frontmatter-Formular ersetzen Inline-Widgets eine Textstelle, deren
 sichtbare Beschriftung **Fließtext-Rang** hat.
 
-**Syntax (domänenfrei):** `[label]{id=… type=…}`. `label` ist sichtbarer Fließtext. Der
-Block `{…}` trägt Attribute (undurchsichtige Schlüssel/Werte); in `wysiwyg` ist er
-ausgeblendet und nicht suchbar. Label und Attributblock bilden **eine** L1-Einheit.
+**Eine Syntax je Session** (`policy.inlineRefStyle`, § 4). Beide Styles projizieren auf
+dieselbe L1-Einheit: sichtbares Label, totes Chrome. Die Komponente resolvt keine
+Beschriftung aus `id`/`type` — das geschriebene Label *ist* die Anzeige (W1). Hover- und
+Katalogdaten liegen beim Host.
+
+| Style | Syntax | Voreinstellung |
+| ----- | ------ | -------------- |
+| `attribute-block` | `[label]{id=… type=…}` | ja |
+| `html-ref` | `<(type)-ref …>label</(type)-ref>` | |
+
+`label` ist sichtbarer Fließtext. Chrome (`{…}` bzw. Start-/End-Tag samt Attributen) ist in
+`wysiwyg` ausgeblendet und nicht suchbar. `type` im html-ref-Tag ist ein undurchsichtiger
+Token (Namensfragment vor dem Suffix `-ref`), keine Domäne. Übrige Attribute sind
+undurchsichtig. Label und Chrome bilden **eine** L1-Einheit.
+
+Kein Chip — und damit kein Widget — sind: leerer Textknoten, Selbstschluss (`/>`),
+abweichender End-Tag, verschachteltes Markup im Label (`<` im Textknoten). Roh-HTML, das
+kein Chip ist, bleibt Quelltext (§ 8.5).
 
 | # | Regel |
 | - | ----- |
 | **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10), hervorhebbar und **als Teilstring selektierbar**. |
-| **W2** | Nicht sichtbare Anteile (Attribute, Ids, Marker) nehmen an der Suche nicht teil. |
+| **W2** | Nicht sichtbare Anteile (Attribute, Ids, Marker, Tags) nehmen an der Suche nicht teil. |
 | **W3** | Löschen erfasst die gesamte Widget-Einheit oder nichts (L1). |
 | **W4** | Widgets überstehen Presentation-, Scope- und Grain-Wechsel funktionsfähig. |
 | **W5** | Fokus in einem Widget entzieht der Text-View den Cursor nicht, solange der Bearbeiter es nicht anspricht. |
+| **W6** | Genau ein `inlineRefStyle` je Session. Hide, Atom, Find, Replace und L1 laufen über **einen** Scanner auf diese Einheit (I6). Die andere Syntax ist in derselben Session gewöhnlicher Quelltext. |
 
 ### 8.4 Metadaten-Pills
 
@@ -464,6 +482,18 @@ Textort auseinanderfallen**: die Zeichen liegen im YAML-Block, angezeigt werden 
 | **P3** | Der Caret kann nicht in eine Pill gesetzt werden, und eine Selektion kann sie nicht zeichenweise erfassen. Grund: CM6-Selektionen sind in Dokumentreihenfolge zusammenhängend — eine Auswahl „Prosa + Pill" müsste rückwärts in den YAML-Block springen oder Überschrift und Frontmatter mitverschlucken. |
 | **P4** | Eine Pill ist **suchbar und hervorhebbar**, einschließlich **Teilstring-Hervorhebung innerhalb der Pill**. Hervorheben ist eine Render-Frage und von P3 nicht betroffen: die Komponente kennt die Trefferstelle im YAML und weiß, welche Pill sie darstellt. |
 | **P5** | Ein Frontmatter-Wert ist **genau dann** durchsuchbar, wenn er als Pill im Lesefluss gerendert wird. Gezählt wird an der Pill, nie zusätzlich im Formular — keine Doppelzählung. |
+
+### 8.5 HTML-Kommentare
+
+`wysiwyg` ist kein HTML-Preview und bindet Roh-HTML nie als lebendes DOM ein. Kommentare
+sind Chrome wie ein Marker, kein Widget mit Label.
+
+| # | Regel |
+| - | ----- |
+| **H1** | Ein abgeschlossener HTML-Kommentar (`<!-- … -->`) ist in `wysiwyg` nicht leser-sichtbar: ausgeblendet und atomar. Er nimmt an der Suche nicht teil (F4). In `source` ist er sichtbarer Quelltext und suchbar (F5). Ein Chip innerhalb eines Kommentars ist nicht sichtbar — der Kommentar gewinnt. Unvollständige Sequenzen ohne `-->` sind kein Kommentar. |
+
+Übriges Roh-HTML (unbekannte Tags, die kein Chip nach § 8.3 sind) bleibt Quelltext in
+beiden Präsentationen.
 
 ---
 
@@ -547,7 +577,7 @@ ein Modus mit einem Parameter:
 
 | # | Regel |
 | - | ----- |
-| **F4** | Die Trefferprojektion in `wysiwyg` ist **was der Leser sieht** — nicht „sichtbarer Dokumenttext". Sie umfasst damit auch Inhalte, die ein Widget aus einer anderen Dokumentstelle ableitet (Pills, P4/P5), und schließt Marker, Widget-Attribute und das Frontmatter-Formular aus. |
+| **F4** | Die Trefferprojektion in `wysiwyg` ist **was der Leser sieht** — nicht „sichtbarer Dokumenttext". Sie umfasst damit auch Inhalte, die ein Widget aus einer anderen Dokumentstelle ableitet (Pills, P4/P5), und schließt Marker, Widget-Attribute, HTML-Kommentare (H1) und das Frontmatter-Formular aus. |
 | **F5** | Daraus folgt: derselbe Query liefert in `source` und `wysiwyg` unterschiedliche Trefferzahlen. Vertrag, kein Defekt. |
 | **F6** | Alles Gesehene ist durchsuchbar — **einschließlich Überschriftentiteln, Inline-Chip-Beschriftungen und Metadaten-Pills**. |
 | **F7** | Ein Treffer wird als **Teilstring** hervorgehoben, auch innerhalb einer Überschrift, einer Chip-Beschriftung und einer Pill. **Selektierbar** ist er nur dort, wo seine Trefferstelle echter Fließtext an der Anzeigeposition ist — also nicht in Pills (P3). |
@@ -794,6 +824,8 @@ replaceAll → { prose: number, metadata: number, rejected?: number }
 Struktur-, Tree-, Policy- und Restore-Typen gehören zum Vertrag, weil Hosts sie
 konstruieren oder aus `subscribe` lesen müssen. CodeMirror-`EditorView` gehört nicht dazu.
 
+`Policy.inlineRefStyle` ist `'attribute-block' | 'html-ref'` (W6, Default `attribute-block`).
+
 Entwurfsentscheidungen: `cause` als Pflichtparameter macht I4 im Typsystem prüfbar. Ein
 `subscribe`-Kanal statt spezialisierter Events verhindert gespiegelten Zustand beim
 Konsumenten (I7, I10).
@@ -981,6 +1013,9 @@ darf auf Zeit warten (I5).
 | T73 | Caret lässt sich nicht in eine Pill setzen; eine Selektion erfasst sie nicht zeichenweise (P3). |
 | T74 | Textlöschen neben einer Pill entfernt sie nicht (P2). |
 | T75 | Jeder Treffer trägt die Klasse `prose` oder `metadata` (F9). |
+| **T122** | Suche nach Text in einem HTML-Kommentar: keine Treffer in `wysiwyg`, Treffer in `source` (H1/F4/F5). |
+| **T123** | Chip-Beschriftung innerhalb eines HTML-Kommentars: in `wysiwyg` kein Treffer (H1). |
+| **T119** | `html-ref`: Suche nach der sichtbaren Beschriftung trifft in `wysiwyg`; Tagname, Attribute und Id treffen nicht (W1/W2/W6). |
 
 ### Ersetzen
 
@@ -993,6 +1028,7 @@ darf auf Zeit warten (I5).
 | T80 | Ersetzung, die den YAML-Block ungültig machen würde, wird für **diesen** Treffer abgelehnt und gemeldet; die übrigen laufen durch (RP6). |
 | T81 | Ersetzen in einer Chip-Beschriftung schreibt in den Prosa-Bereich; Ersetzen eines Chip-Attributs ist mangels Treffer unmöglich (W2). |
 | T82 | Ersetzen markiert nur die betroffenen Nodes dirty (RP7/D1). |
+| **T120** | `html-ref`: Ersetzen der Beschriftung schreibt nur den Textknoten; Start- und End-Tag bleiben (RP1/W6). |
 
 ### TrackedPosition und View-Zustand
 
@@ -1027,6 +1063,8 @@ darf auf Zeit warten (I5).
 | T54 | Widget übersteht Presentation-, Scope- und Grain-Wechsel funktionsfähig (W4). |
 | T55 | Feld leeren erzeugt gültiges Markdown. |
 | T56 | Fokus im Widget stiehlt der Text-View den Cursor nicht (W5). |
+| **T121** | `html-ref`: leerer Textknoten, Selbstschluss und abweichender End-Tag sind kein Chip (W6). |
+| **T124** | `attribute-block` interpretiert html-ref-Syntax nicht als Chip und umgekehrt (W6). |
 
 ### Selektionsunabhängigkeit
 
@@ -1108,7 +1146,7 @@ Torstelle vor dem ersten Anwendungscode.
 | ----- | ------ | -------- |
 | **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
 | **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
-| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig | T38–T56, T64–T82, T117 grün |
+| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig | T38–T56, T64–T82, T117, T119–T124 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
 ### 16.1 Verifikation des Sync-Kerns

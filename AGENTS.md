@@ -52,7 +52,7 @@ Repository-Schnitt, Prüfskripte, Testebenen und Agenten-Budget: `SETUP.md`.
 
 | Ebene | Umfang |
 | ----- | ------ |
-| Verhalten (E2E) | `SPEC.md` § 14, T1–T116 |
+| Verhalten (E2E) | `SPEC.md` § 14, T1–T124 |
 | Unit | Sync-Kern-Mechanik (§ 11.2) |
 
 E2E-Tests lösen Zustände über die Kommandoschnittstelle aus (`SPEC.md` § 13.4), nicht über
@@ -70,7 +70,7 @@ Sprache der Spec (O3).
 
 ## Fertig heißt
 
-Alle Regeln aus `SPEC.md` § 5–10 erfüllt, T1–T116 grün, Benchmark-Ergebnis mit Zahlen und
+Alle Regeln aus `SPEC.md` § 5–10 erfüllt, T1–T124 grün, Benchmark-Ergebnis mit Zahlen und
 Falsifikationssatz (§ 15.4), API gehärtet (§ 12).
 
 ## Sprache

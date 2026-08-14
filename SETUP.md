@@ -47,7 +47,7 @@ harness/                   Testoberfläche, wird nicht veröffentlicht
   inspector.ts             Instrumentierung (§ 13.3)
 
 tests/
-  behaviour/               T1–T116
+  behaviour/               T1–T124
   unit/
     sync/                  Sync-Kern-Mechanik (§ 11.2)
   fixtures/corpus.ts       Generator S/M/L, fester Seed
@@ -68,8 +68,8 @@ scripts/
 ## 2 · Regel-Ids an Tests binden
 
 Der wichtigste Mechanismus. `SPEC.md` vergibt Ids: `I1–I10`, `TP1–TP8`, `V1–V10`,
-`S1–S3`, `R1–R7`, `U1–U16`, `D1–D5`, `L1–L6`, `FM1–FM7`, `W1–W5`, `P1–P5`, `F1–F10`,
-`RP1–RP7`, `B1–B4`, `G1a/G1b`, `G2–G3`, `EX1–EX5`.
+`S1–S3`, `R1–R7`, `U1–U16`, `D1–D5`, `L1–L6`, `FM1–FM7`, `W1–W6`, `P1–P5`, `F1–F10`,
+`RP1–RP7`, `B1–B4`, `G1a/G1b`, `G2–G3`, `EX1–EX5`, `H1`.
 
 Jeder Test annotiert, welche Regeln er abdeckt:
 

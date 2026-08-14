@@ -13,7 +13,7 @@ const SPEC_FILE = "SPEC.md";
 const TESTS_DIR = "tests";
 
 // Longest prefix first so "TP"/"FM"/"RP"/"EX" aren't swallowed by "T"/"F"/"R"/"E".
-const RULE_PREFIXES = ["TP", "FM", "RP", "EX", "I", "V", "S", "R", "U", "D", "L", "W", "P", "F", "B", "G"];
+const RULE_PREFIXES = ["TP", "FM", "RP", "EX", "I", "V", "S", "R", "U", "D", "L", "W", "P", "F", "B", "G", "H"];
 
 function extractRuleIds(text) {
   const ids = new Set();

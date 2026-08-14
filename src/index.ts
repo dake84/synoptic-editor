@@ -19,6 +19,7 @@ export type {
   CreateViewOptions,
   ForeignTimelineCommand,
   IncludeMode,
+  InlineRefStyle,
   Policy,
   Presentation,
   Range,

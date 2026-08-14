@@ -66,6 +66,7 @@ import type {
   Session as PublicSession,
   SessionEvent,
 } from "./api.js";
+import type { InlineRefStyle } from "./core/chips.js";
 import type { ViewHandle, ViewScope } from "./view-handle.js";
 
 export type { CreateSessionOptions, CreateViewOptions, Policy, SessionEvent };
@@ -74,6 +75,7 @@ export interface ResolvedPolicy {
   structureEditingInWysiwyg: "locked" | "allowed";
   frontmatterInWysiwyg: "form" | "hidden";
   pillFields: string[];
+  inlineRefStyle: InlineRefStyle;
 }
 
 export type RelationKind = "identical" | "containing" | "disjoint";
@@ -162,6 +164,7 @@ export class Session implements PublicSession {
       structureEditingInWysiwyg: opts.policy?.structureEditingInWysiwyg ?? "locked",
       frontmatterInWysiwyg: opts.policy?.frontmatterInWysiwyg ?? "form",
       pillFields: opts.policy?.pillFields ?? [],
+      inlineRefStyle: opts.policy?.inlineRefStyle ?? "attribute-block",
     };
     this.sync = createSync(opts.doc);
     this.timeline = createTimeline(opts.timeline as TimelineImpl | undefined);
@@ -500,8 +503,8 @@ export class Session implements PublicSession {
       return [
         wysiwygDecorationField(slot.rangeField),
         wysiwygAtomField(slot.rangeField),
-        chipDecorationField(slot.rangeField),
-        chipAtomField(slot.rangeField),
+        chipDecorationField(slot.rangeField, this.policy.inlineRefStyle),
+        chipAtomField(slot.rangeField, this.policy.inlineRefStyle),
         frontmatterField(slot.rangeField, this.schema, this.policy.frontmatterInWysiwyg),
         frontmatterAtomField(slot.rangeField, this.schema),
         frontmatterLockFilter(this.schema),
@@ -509,7 +512,7 @@ export class Session implements PublicSession {
         frontmatterWriteFacet.of({
           write: (blockFrom, key, value) => this.writeFrontmatterField(blockFrom, key, value),
         }),
-        wysiwygGuards({ structureLocked: locked }),
+        wysiwygGuards({ structureLocked: locked, inlineRefStyle: this.policy.inlineRefStyle }),
         grainField(slot.rangeField, this.schema, slot.grain),
       ];
     }
@@ -694,6 +697,7 @@ export class Session implements PublicSession {
           presentation: slot.presentation,
           schema: session.schema,
           pillFields: session.policy.pillFields,
+          inlineRefStyle: session.policy.inlineRefStyle,
           tree: session.treeState,
         });
         slot.findHits = hits;

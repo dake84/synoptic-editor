@@ -7,6 +7,7 @@
     "CreateViewOptions",
     "ForeignTimelineCommand",
     "IncludeMode",
+    "InlineRefStyle",
     "Policy",
     "Presentation",
     "Range",
