@@ -3,9 +3,34 @@
  * Installed only on wysiwyg view states — source does not get this extension.
  */
 
-import { EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
+import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
+import { findChips } from "../../core/chips.js";
+import { projectTree } from "../../core/tree.js";
+import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
+
+export const frontmatterWriteAnnotation = Annotation.define<boolean>();
+
+/** Block raw edits to frontmatter ranges in wysiwyg (FM1/FM2); L5 writes via session applySession. */
+export function frontmatterLockFilter(schema: StructureSchema): Extension {
+  return EditorState.transactionFilter.of((tr) => {
+    if (!tr.docChanged) return tr;
+    if (tr.annotation(syncAnnotation)) return tr;
+    if (tr.annotation(frontmatterWriteAnnotation)) return tr;
+    const doc = tr.startState.doc.toString();
+    const tree = projectTree(doc, schema);
+    let blocked = false;
+    tr.changes.iterChanges((fromA, toA) => {
+      for (const node of tree.nodes.values()) {
+        const fm = node.frontmatter;
+        if (!fm) continue;
+        if (fromA < fm.to && toA > fm.from) blocked = true;
+      }
+    });
+    return blocked ? [] : tr;
+  });
+}
 
 /** ATX atom: hashes plus exactly one separator. Extra spaces are title (L4). */
 const HEADING_MARKER = /^(#{1,6}[ \t])/gm;
@@ -95,7 +120,8 @@ export function snapOutOfHeadingMarkers(sel: EditorSelection, doc: string): Edit
   return EditorSelection.create(ranges, sel.mainIndex);
 }
 
-export function wysiwygGuards(): Extension {
+export function wysiwygGuards(opts?: { structureLocked?: boolean }): Extension {
+  const structureLocked = opts?.structureLocked ?? true;
   return [
     Prec.highest(
       keymap.of([
@@ -106,6 +132,7 @@ export function wysiwygGuards(): Extension {
             if (!sel.empty) return false;
             const mk = headingAtomForDelete(view.state.doc.toString(), sel.head, "backward");
             if (!mk) return false;
+            if (structureLocked) return true; // consume, do not delete marker (L4/T43)
             view.dispatch({
               changes: { from: mk.from, to: mk.to, insert: "" },
               selection: EditorSelection.cursor(mk.from),
@@ -121,6 +148,9 @@ export function wysiwygGuards(): Extension {
             if (!sel.empty) return false;
             const range = wysiwygForwardDelete(view.state.doc.toString(), sel.head);
             if (!range) return false;
+            const markers = headingMarkers(view.state.doc.toString());
+            const isMarker = markers.some((mk) => mk.from === range.from && mk.to === range.to);
+            if (structureLocked && isMarker) return true;
             view.dispatch({
               changes: { from: range.from, to: range.to, insert: "" },
               selection: EditorSelection.cursor(range.from),
@@ -146,16 +176,31 @@ export function wysiwygGuards(): Extension {
       if (!tr.docChanged) return tr;
       if (tr.annotation(syncAnnotation)) return tr;
 
+      if (structureLocked) {
+        const startDoc = tr.startState.doc.toString();
+        const markers = headingMarkers(startDoc);
+        let blocked = false;
+        tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+          for (const mk of markers) {
+            if (fromA < mk.to && toA > mk.from) blocked = true;
+          }
+          const ins = inserted.toString();
+          if (/(^|\n)#{1,6}[ \t]/.test(ins)) blocked = true;
+        });
+        if (blocked) return [];
+      }
+
       const startDoc = tr.startState.doc.toString();
       const markers = headingMarkers(startDoc);
       const pairs = maskPairs(startDoc, 0, startDoc.length);
+      const chips = findChips(startDoc).map((c) => ({ from: c.from, to: c.to }));
       let rewritten = false;
       const pieces: { from: number; to: number; insert: string }[] = [];
 
       tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
         let from = fromA;
         let to = toA;
-        for (const mk of [...markers, ...pairs]) {
+        for (const mk of [...markers, ...pairs, ...chips]) {
           const overlaps = from < mk.to && to > mk.from;
           const covers = from <= mk.from && to >= mk.to;
           if (overlaps && !covers) {

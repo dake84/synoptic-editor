@@ -252,11 +252,14 @@ StructureSchema = {
 Policy = {
   structureEditingInWysiwyg?: 'locked' | 'allowed',   // Default 'locked'
   frontmatterInWysiwyg?:      'form'   | 'hidden',    // Default 'form'
+  pillFields?:                string[],               // Default [] — YAML keys shown as pills (§ 8.4)
 }
 ```
 
 `rank` aufsteigend von der äußersten Ebene. Der Kern kennt ausschließlich Ränge; `id` ist ein
 undurchsichtiger Bezeichner für den Host. `grain` einer View ist eine `rank`-Angabe.
+`pillFields` wählt, welche Frontmatter-Schlüssel zusätzlich als Pills unter der Überschrift
+erscheinen (P5). Nicht gelistete Schlüssel bleiben nur im Formular (FM7).
 
 **Zur Konfigurierbarkeit von L5/R5:** Strukturbearbeitung in `wysiwyg` zu sperren ist
 **Host-Politik, keine Invariante**. Die Komponente muss sperren *können*; ob sie es tut,
@@ -428,6 +431,10 @@ FM7 ist eine bewusste Entscheidung, keine technische Grenze — Begründung und 
 Im Gegensatz zum Frontmatter-Formular ersetzen Inline-Widgets eine Textstelle, deren
 sichtbare Beschriftung **Fließtext-Rang** hat.
 
+**Syntax (domänenfrei):** `[label]{id=… type=…}`. `label` ist sichtbarer Fließtext. Der
+Block `{…}` trägt Attribute (undurchsichtige Schlüssel/Werte); in `wysiwyg` ist er
+ausgeblendet und nicht suchbar. Label und Attributblock bilden **eine** L1-Einheit.
+
 | # | Regel |
 | - | ----- |
 | **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10), hervorhebbar und **als Teilstring selektierbar**. |
@@ -439,9 +446,10 @@ sichtbare Beschriftung **Fließtext-Rang** hat.
 ### 8.4 Metadaten-Pills
 
 Ausgewählte Frontmatter-Felder werden zusätzlich als **Pills** unter der Überschrift im
-Lesefluss gerendert. Sie sind die dritte Widget-Klasse und verhalten sich anders als beide
-vorherigen, weil **Anzeigeort und Textort auseinanderfallen**: die Zeichen liegen im
-YAML-Block, angezeigt werden sie nach der Überschrift.
+Lesefluss gerendert. Welche Schlüssel — legt `policy.pillFields` fest (§ 4). Sie sind die
+dritte Widget-Klasse und verhalten sich anders als beide vorherigen, weil **Anzeigeort und
+Textort auseinanderfallen**: die Zeichen liegen im YAML-Block, angezeigt werden sie nach der
+Überschrift.
 
 | Klasse | Textbereich | Suche | Selektion | Ersetzen |
 | ------ | ----------- | ----- | --------- | -------- |
@@ -716,9 +724,21 @@ Entwurf. Alles nicht Aufgeführte ist intern.
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.visibleNode` | lesend |
-| `view.find(query, { mode: 'view' \| 'document' })` | Kommando (§ 10.1) |
+| `view.find(query, { mode: 'view' \| 'document' })` | Kommando (§ 10.1) → `SearchHit[]` |
 | `view.replace(hitId, text)` · `view.replaceAll(text, { classes })` | Kommando (§ 10.3) |
 | `view.focus()` | Kommando |
+
+```
+SearchHit = {
+  id:    string,
+  from:  number,              // document offset (pill hits: YAML value range)
+  to:    number,
+  class: 'prose' | 'metadata',
+}
+```
+
+`replaceAll` liefert `{ prose: number, metadata: number, rejected?: number }` — getrennte
+Zählung (RP5) und abgelehnte YAML-Treffer (RP6).
 
 Entwurfsentscheidungen: `cause` als Pflichtparameter macht I4 im Typsystem prüfbar. Ein
 `subscribe`-Kanal statt spezialisierter Events verhindert gespiegelten Zustand beim
@@ -1032,7 +1052,7 @@ Torstelle vor dem ersten Anwendungscode.
 | ----- | ------ | -------- |
 | **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
 | **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
-| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig, strukturelle Listenansicht | T38–T56, T64–T82 grün |
+| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig | T38–T56, T64–T82 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
 ### 16.1 Verifikation des Sync-Kerns

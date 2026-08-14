@@ -11,32 +11,52 @@ import type { IncludeMode, Presentation } from "../src/view/presentation.js";
 
 const DOC = `---
 id: n0
+note: pinned
+extra: not-a-pill
+tag: alpha
 ---
 
 # Root
 
-Root body.
+Root intro with a chip [Alpha]{id=a type=ref} and another [Beta]{id=b type=ref}.
+
+Literal hash in prose looks like this when typed in wysiwyg: \\#tag.
 
 ---
 id: n1
+note: child-note
+extra: child-extra
 ---
 
 ## Child
 
-Child body.
+Child body mentions [Gamma]{id=g type=item} once.
+
+More child lines for scroll and search.
+Line two.
+Line three.
 
 ---
 id: n2
+note: other-note
 ---
 
 # Other
 
-Other body.
+Other body without chips, only a pill field \`note\`.
 `;
 
 let session: Session;
 try {
-  session = createSession({ doc: DOC, schema: FIXTURE_SCHEMA });
+  session = createSession({
+    doc: DOC,
+    schema: FIXTURE_SCHEMA,
+    policy: {
+      pillFields: ["note", "tag"],
+      frontmatterInWysiwyg: "form",
+      structureEditingInWysiwyg: "locked",
+    },
+  });
 } catch (err) {
   document.getElementById("status")!.textContent = `init-error: ${err}`;
   throw err;
@@ -47,6 +67,8 @@ session.subscribe((e) => events.push(e));
 const panes = new Map<string, HTMLElement>();
 const wrappers = new Map<string, HTMLElement>();
 const savedStates: ViewRestoreState[] = [];
+/** Survives paintFactory rebuilds (otherwise find results flash then reset to —). */
+let findStatus = "—";
 
 function pane(id: string): HTMLElement {
   let el = panes.get(id);
@@ -221,12 +243,14 @@ function paintFactory(): void {
       <button type="button" data-cmd="heading-depth">changeHeadingDepth</button>
     </fieldset>
     <fieldset>
-      <legend>find (Phase 3 stub)</legend>
-      <input name="find-view" placeholder="view mode" size="12" />
+      <legend>find / replace</legend>
+      <input name="find-q" placeholder="query (Alpha / pinned / #)" size="22" />
       <button type="button" data-cmd="find" data-mode="view">find view</button>
-      <input name="find-doc" placeholder="document mode" size="12" />
       <button type="button" data-cmd="find" data-mode="document">find document</button>
-      <span id="find-out">—</span>
+      <input name="replace-text" placeholder="replace with" size="10" />
+      <button type="button" data-cmd="replace-all">replaceAll prose</button>
+      <button type="button" data-cmd="replace-meta">replaceAll +metadata</button>
+      <span id="find-out">${esc(findStatus)}</span>
     </fieldset>
   `;
 }
@@ -316,11 +340,23 @@ function onChromeClick(ev: Event): void {
     if (nodeId) api.applyStructure({ type: "changeHeadingDepth", nodeId, headingDepth });
   } else if (cmd === "find") {
     const mode = btn.dataset.mode as "view" | "document";
-    const q = named<HTMLInputElement>(document.getElementById("factory-bar")!, mode === "view" ? "find-view" : "find-doc")?.value ?? "";
+    const q = named<HTMLInputElement>(document.getElementById("factory-bar")!, "find-q")?.value ?? "";
     const target = focusedId();
+    const scope = target ? session.scopeOf(target).nodeId : "?";
     const hits = target ? session.view(target)?.find(q, { mode }) ?? [] : [];
-    document.getElementById("find-out")!.textContent = `${hits.length} hits`;
+    findStatus =
+      `${hits.length} hits via ${target ?? "—"}@${scope} mode=${mode}` +
+      (hits.length ? ` (${hits.map((h) => h.class).join(",")})` : q ? "" : " (empty query)");
+    paint();
     return;
+  } else if (cmd === "replace-all" || cmd === "replace-meta") {
+    const text = named<HTMLInputElement>(document.getElementById("factory-bar")!, "replace-text")?.value ?? "";
+    const target = focusedId();
+    const classes = cmd === "replace-meta" ? (["prose", "metadata"] as const) : (["prose"] as const);
+    const result = target ? session.view(target)?.replaceAll(text, { classes: [...classes] }) : null;
+    findStatus = result
+      ? `replaced via ${target} prose=${result.prose} meta=${result.metadata} rej=${result.rejected ?? 0}`
+      : "—";
   } else if (cmd === "nav") {
     const nodeId = btn.dataset.node;
     const target = focusedId();
@@ -344,8 +380,9 @@ function openView(opts: {
   return handle.id;
 }
 
-const a = openView({ nodeId: "n0", include: "subtree", presentation: "source" });
-const b = openView({ nodeId: "n2", include: "subtree", presentation: "source" });
+const a = openView({ nodeId: "n0", include: "subtree", presentation: "wysiwyg" });
+const b = openView({ nodeId: "n2", include: "subtree", presentation: "wysiwyg" });
+const c = openView({ nodeId: "n0", include: "subtree", presentation: "source" });
 
 export type HarnessApi = {
   session: Session;
@@ -468,7 +505,9 @@ const api: HarnessApi = {
   },
   flush() {
     return new Promise((resolve) => {
-      requestAnimationFrame(() => resolve(inspect()));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve(inspect()));
+      });
     });
   },
   inspect,
@@ -476,6 +515,7 @@ const api: HarnessApi = {
 
 void a;
 void b;
+void c;
 
 Object.assign(window, { __harness: api });
 document.getElementById("status")!.textContent = "ready";

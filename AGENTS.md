@@ -62,8 +62,8 @@ Zeigergesten.
 
 `SPEC.md` § 16. Die Architektur ist entschieden und in `spikes/phase-0/` belegt (§ 11.3) —
 `SessionEditorState` ohne View, ein `EditorState` je View, Dokument-Weiterleitung, keine
-Selektions-Weiterleitung, sticky `ScopeRange` (EX1–EX5). Als Nächstes Phase 1. `src/core/**`
-bleibt stehen (kennt CM6 nicht). Der frühere Sync-/View-Layer gegen die verworfene
+Selektions-Weiterleitung, sticky `ScopeRange` (EX1–EX5). Als Nächstes Phase 3 (Formular, Chips, Pills, Suche). `src/core/**`
+bleibt stehen (kennt CM6 nicht; `yaml` für Frontmatter-Ranges ist erlaubt). Der frühere Sync-/View-Layer gegen die verworfene
 Variantenprämisse ist entfernt (`git log`).
 
 ## Fertig heißt

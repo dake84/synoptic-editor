@@ -2,10 +2,8 @@
 // output, always. No domain-specific identifiers in schema or content (SPEC.md §1,
 // Domänenfreiheit).
 //
-// KNOWN GAP: no inline-widget/reference markup is generated. SPEC.md §8.3 defines widget
-// *behaviour* but never fixes a concrete markdown syntax for them — that lands with Phase 3.
-// Fixing a syntax here now would be an implementation decision with no basis in SPEC.md.
-// Revisit once §8.3's syntax is settled.
+// Inline chips use SPEC.md § 8.3 syntax `[label]{id=… type=…}`. The generator still
+// omits them until Phase-2 corpus density is needed; Phase-3 tests inject chips explicitly.
 
 export interface StructureLevel {
   rank: number;

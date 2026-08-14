@@ -5,9 +5,16 @@
 import { ChangeSet, EditorSelection, Transaction } from "@codemirror/state";
 import { Compartment } from "@codemirror/state";
 import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { DirtyState } from "./core/dirty.js";
 import { invertChangeSet } from "./core/document.js";
+import { planFieldWrite, wouldBreakYamlValue } from "./core/frontmatter.js";
+import {
+  findInDocument,
+  planReplaceAll,
+  type SearchHit,
+  type SearchHitClass,
+} from "./core/search.js";
 import { planStructureAction, type StructureAction } from "./core/structure.js";
 import { createTimeline, type Timeline } from "./core/timeline.js";
 import {
@@ -18,7 +25,13 @@ import {
 import { getNode, nodeAtPosition, projectTree } from "./core/tree.js";
 import type { Range, StructureSchema, Tree } from "./core/types.js";
 import { createSync, type SyncEngine, type ViewId } from "./sync/index.js";
-import { wysiwygGuards } from "./view/guards/wysiwyg.js";
+import {
+  findHighlightField,
+  findQueryField,
+  setFindHighlights,
+  setFindQuery,
+} from "./view/find-decorations.js";
+import { frontmatterLockFilter, wysiwygGuards } from "./view/guards/wysiwyg.js";
 import {
   grainField,
   hideOutsideField,
@@ -37,11 +50,25 @@ import {
   viewRange,
   type ScopeRange,
 } from "./view/scope.js";
+import { chipAtomField, chipDecorationField } from "./view/widgets/chips.js";
+import {
+  frontmatterAtomField,
+  frontmatterField,
+  frontmatterWriteFacet,
+} from "./view/widgets/form.js";
+import { pillField } from "./view/widgets/pills.js";
 import type { ViewHandle, ViewRestoreState, ViewScope } from "./view-handle.js";
 
 export interface Policy {
   structureEditingInWysiwyg?: "locked" | "allowed";
   frontmatterInWysiwyg?: "form" | "hidden";
+  pillFields?: string[];
+}
+
+export interface ResolvedPolicy {
+  structureEditingInWysiwyg: "locked" | "allowed";
+  frontmatterInWysiwyg: "form" | "hidden";
+  pillFields: string[];
 }
 
 export interface CreateSessionOptions {
@@ -90,6 +117,8 @@ interface ViewSlot {
   handedOut: boolean;
   lostNotified: boolean;
   ancestry: string[];
+  findHits: SearchHit[];
+  findQuery: string;
   rangeField: ReturnType<typeof createScopeRangeField>;
   compartment: Compartment;
   handle: ViewHandle;
@@ -129,7 +158,7 @@ function survivingAncestor(tree: Tree, nodeId: string, ancestry: string[]): stri
 
 export class Session {
   readonly schema: StructureSchema;
-  readonly policy: Required<Policy>;
+  readonly policy: ResolvedPolicy;
   private readonly sync: SyncEngine;
   private readonly timeline: Timeline;
   private readonly tracked: TrackedPositionRegistry;
@@ -149,6 +178,7 @@ export class Session {
     this.policy = {
       structureEditingInWysiwyg: opts.policy?.structureEditingInWysiwyg ?? "locked",
       frontmatterInWysiwyg: opts.policy?.frontmatterInWysiwyg ?? "form",
+      pillFields: opts.policy?.pillFields ?? [],
     };
     this.sync = createSync(opts.doc);
     this.timeline = createTimeline(opts.timeline);
@@ -409,6 +439,8 @@ export class Session {
       handedOut,
       lostNotified: false,
       ancestry,
+      findHits: [],
+      findQuery: "",
       rangeField: createScopeRangeField({ from: 0, to: 0, lost: false }),
       compartment: new Compartment(),
       handle: this.makeHandle(id),
@@ -478,11 +510,45 @@ export class Session {
   }
 
   private chrome(slot: ViewSlot) {
-    const hide =
-      slot.presentation === "wysiwyg"
-        ? [wysiwygDecorationField(slot.rangeField), wysiwygAtomField(slot.rangeField), wysiwygGuards()]
-        : [hideOutsideField(slot.rangeField)];
-    return [...hide, grainField(slot.rangeField, this.schema, slot.grain)];
+    const locked = this.policy.structureEditingInWysiwyg === "locked";
+    if (slot.presentation === "wysiwyg") {
+      return [
+        wysiwygDecorationField(slot.rangeField),
+        wysiwygAtomField(slot.rangeField),
+        chipDecorationField(slot.rangeField),
+        chipAtomField(slot.rangeField),
+        frontmatterField(slot.rangeField, this.schema, this.policy.frontmatterInWysiwyg),
+        frontmatterAtomField(slot.rangeField, this.schema),
+        frontmatterLockFilter(this.schema),
+        pillField(slot.rangeField, this.schema, this.policy.pillFields),
+        frontmatterWriteFacet.of({
+          write: (blockFrom, key, value) => this.writeFrontmatterField(blockFrom, key, value),
+        }),
+        wysiwygGuards({ structureLocked: locked }),
+        grainField(slot.rangeField, this.schema, slot.grain),
+      ];
+    }
+    return [hideOutsideField(slot.rangeField), grainField(slot.rangeField, this.schema, slot.grain)];
+  }
+
+  /** Form / API path (L5): writes YAML via one ChangeSet (FM3). */
+  writeFrontmatterField(blockFrom: number, key: string, value: string | null): boolean {
+    const node = [...this.treeState.nodes.values()].find((n) => n.frontmatter?.from === blockFrom);
+    if (!node?.frontmatter) return false;
+    const plan = planFieldWrite(this.document, node.frontmatter, key, value);
+    if (!plan) return false;
+    this.hushTimeline = true;
+    const before = this.document;
+    const changes = this.sync.applySession({
+      changes: { from: plan.from, to: plan.to, insert: plan.insert },
+      filter: false,
+    });
+    this.hushTimeline = false;
+    if (!changes.empty) {
+      this.timeline.pushText(changes, invertChangeSet(before, changes), { targetNodeId: node.id });
+    }
+    // Decorations (form/pills) follow docChanged — no chrome reconfigure (keeps form focus).
+    return true;
   }
 
   private installView(slot: ViewSlot, selection?: EditorSelection): void {
@@ -493,6 +559,8 @@ export class Session {
       slot.rangeField,
       scopeFence(slot.rangeField),
       scopeCopyHandler(slot.rangeField),
+      findQueryField,
+      findHighlightField,
       slot.compartment.of(this.chrome(slot)),
     ];
     this.sync.addView(slot.id, extensions, slot.compartment, selection);
@@ -531,6 +599,12 @@ export class Session {
           scrollToPos(ev, scroll.from, "restore");
         }
         ev.scrollDOM.addEventListener("scroll", () => session.scheduleMeasure());
+        // Editor / form focus updates session focus (T22); find/replace use focused view (F1).
+        ev.dom.addEventListener("focusin", () => {
+          if (session.focused === id) return;
+          session.focused = id;
+          session.emit({ type: "focus" });
+        });
         session.scheduleMeasure();
       },
       destroy() {
@@ -618,12 +692,106 @@ export class Session {
       get visibleNode() {
         return session.views.get(id)?.visibleNode ?? null;
       },
-      find() {
-        return [];
+      find(query: string, opts: { mode: "view" | "document" }) {
+        const slot = session.requireSlot(id);
+        const range =
+          opts.mode === "view"
+            ? viewRange(session.sync.getState(id))
+            : { from: 0, to: session.document.length, lost: false };
+        const hits = findInDocument(session.document, {
+          query,
+          range: { from: range.from, to: range.to },
+          presentation: slot.presentation,
+          schema: session.schema,
+          pillFields: session.policy.pillFields,
+          tree: session.treeState,
+        });
+        slot.findHits = hits;
+        slot.findQuery = query;
+        const active = hits.length > 0 ? 0 : -1;
+        if (opts.mode === "document" && active >= 0) {
+          session.revealFindHit(id, hits[active]!);
+        }
+        const activeHit = active >= 0 ? hits[active]! : null;
+        const effects = [
+          setFindQuery.of(query),
+          setFindHighlights.of({ hits, active, presentation: slot.presentation }),
+        ];
+        if (activeHit?.class === "prose") {
+          const sel = EditorSelection.range(activeHit.from, activeHit.to);
+          session.sync.dispatchSpecs(id, [
+            {
+              selection: sel,
+              effects: [...effects, EditorView.scrollIntoView(sel, { y: "nearest" })],
+              annotations: [scrollCause.of("find"), Transaction.addToHistory.of(false)],
+            },
+          ]);
+        } else {
+          session.sync.dispatchSpecs(id, [
+            {
+              effects,
+              annotations: [scrollCause.of("find"), Transaction.addToHistory.of(false)],
+            },
+          ]);
+          if (activeHit?.class === "metadata") {
+            session.scrollToMetadataHit(id, activeHit);
+          }
+        }
+        return hits;
       },
-      replace() {},
-      replaceAll() {
-        return { prose: 0, metadata: 0 };
+      replace(hitId: string, text: string) {
+        const slot = session.requireSlot(id);
+        const hit = slot.findHits.find((h) => h.id === hitId);
+        if (!hit) return;
+        if (hit.class === "metadata" && wouldBreakYamlValue(text)) return;
+        session.hushTimeline = true;
+        const before = session.document;
+        const changes = session.sync.applySession({
+          changes: { from: hit.from, to: hit.to, insert: text },
+          filter: false,
+        });
+        session.hushTimeline = false;
+        if (!changes.empty) {
+          const target = nodeAtPosition(projectTree(before, session.schema), hit.from);
+          session.timeline.pushText(changes, invertChangeSet(before, changes), {
+            targetNodeId: target?.id,
+          });
+        }
+        slot.findHits = slot.findHits.filter((h) => h.id !== hitId);
+      },
+      replaceAll(text: string, opts?: { classes?: string[] }) {
+        const slot = session.requireSlot(id);
+        const classes = (opts?.classes ?? ["prose"]) as SearchHitClass[];
+        const plan = planReplaceAll(session.document, slot.findHits, text, classes, (hit, replacement) => {
+          if (hit.class !== "metadata") return true;
+          return !wouldBreakYamlValue(replacement);
+        });
+        if (plan.changes.length === 0) {
+          return { prose: plan.prose, metadata: plan.metadata, rejected: plan.rejected };
+        }
+        session.hushTimeline = true;
+        const before = session.document;
+        const changes = session.sync.applySession({
+          changes: plan.changes,
+          filter: false,
+        });
+        session.hushTimeline = false;
+        if (!changes.empty) {
+          let from = 0;
+          let seen = false;
+          changes.iterChanges((fromA) => {
+            if (!seen) {
+              from = fromA;
+              seen = true;
+            }
+          });
+          const target = nodeAtPosition(projectTree(before, session.schema), from);
+          session.timeline.pushText(changes, invertChangeSet(before, changes), {
+            targetNodeId: target?.id,
+          });
+        }
+        slot.findHits = [];
+        return { prose: plan.prose, metadata: plan.metadata, rejected: plan.rejected };
       },
       focus() {
         session.focused = id;
@@ -651,6 +819,27 @@ export class Session {
     const inside = node.subtreeRange.from >= range.from && node.subtreeRange.to <= range.to;
     if (!inside) handle.setScope(nodeId);
     handle.scrollToNode(nodeId, "undo");
+  }
+
+  /** Document-mode find: open the hit's node in this view when outside ScopeRange (F2/U5/T49). */
+  private revealFindHit(viewId: string, hit: SearchHit): void {
+    const node = nodeAtPosition(this.treeState, hit.from);
+    if (!node) return;
+    const range = viewRange(this.sync.getState(viewId));
+    const inside = hit.from >= range.from && hit.to <= range.to;
+    if (inside) return;
+    const slot = this.views.get(viewId);
+    slot?.handle.setScope(node.id, { include: slot.scope.include });
+  }
+
+  /** Metadata hits are painted on pills under the heading — scroll there, do not select YAML (P3). */
+  private scrollToMetadataHit(viewId: string, hit: SearchHit): void {
+    const node = [...this.treeState.nodes.values()].find(
+      (n) => n.frontmatter && hit.from >= n.frontmatter.from && hit.to <= n.frontmatter.to,
+    );
+    const ev = this.sync.editorView(viewId);
+    if (!node || !ev) return;
+    scrollToPos(ev, node.heading.to, "find");
   }
 
   private emitScopeLost(): void {

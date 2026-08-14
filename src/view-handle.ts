@@ -3,6 +3,7 @@
  */
 
 import type { EditorView } from "@codemirror/view";
+import type { SearchHit, SearchHitClass } from "./core/search.js";
 import type { TrackedPositionId } from "./core/tracked-position.js";
 import type { IncludeMode, Presentation } from "./view/presentation.js";
 
@@ -20,6 +21,12 @@ export interface ViewRestoreState {
   findState: unknown;
 }
 
+export interface ReplaceAllResult {
+  prose: number;
+  metadata: number;
+  rejected?: number;
+}
+
 export interface ViewHandle {
   readonly id: string;
   mount(el: HTMLElement): void;
@@ -31,9 +38,11 @@ export interface ViewHandle {
   navigateTo(nodeId: string): void;
   scrollToNode(nodeId: string, cause: string): void;
   readonly visibleNode: string | null;
-  find(query: string, opts: { mode: "view" | "document" }): unknown[];
+  find(query: string, opts: { mode: "view" | "document" }): SearchHit[];
   replace(hitId: string, text: string): void;
-  replaceAll(text: string, opts?: { classes?: string[] }): unknown;
+  replaceAll(text: string, opts?: { classes?: SearchHitClass[] }): ReplaceAllResult;
   focus(): void;
   editorView(): EditorView | null;
 }
+
+export type { SearchHit, SearchHitClass };

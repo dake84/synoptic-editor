@@ -36,7 +36,7 @@ type Harness = {
   undo: () => void;
 };
 
-const PAD = "\n".repeat(28);
+const PAD = "\n".repeat(60);
 const TALL = `---
 id: n0
 ---
