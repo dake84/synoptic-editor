@@ -80,4 +80,49 @@ describe("public API (SPEC § 12)", () => {
     view.focus();
     expect(session.focusedViewId).toBe(view.id);
   });
+
+  /** @covers R6, I4 */
+  it("moves, renames, and reveals through the public session/view contract", () => {
+    const session = createSession({
+      doc: `---
+id: n0
+---
+
+# Root
+
+Root body.
+
+---
+id: n1
+---
+
+## First
+
+First body.
+
+---
+id: n2
+---
+
+## Second
+
+Second body.
+`,
+      schema: SCHEMA,
+    });
+    const view = session.createView({
+      scope: { nodeId: "n0", include: "subtree" },
+      extensions: [],
+      presentationExtensions: { source: [] },
+    });
+    expect(
+      session.apply({ type: "moveNode", nodeId: "n1", parentId: "n0", index: 1 }),
+    ).toBe(true);
+    expect(session.tree.nodes.get("n0")?.childIds).toEqual(["n2", "n1"]);
+    expect(session.apply({ type: "renameNode", nodeId: "n2", title: "Zwei" })).toBe(true);
+    expect(session.tree.nodes.get("n2")?.title).toBe("Zwei");
+    view.reveal(0, 4, "find");
+    const quiet = view.find("Second", { mode: "view", activate: false });
+    expect(quiet.length).toBeGreaterThan(0);
+  });
 });

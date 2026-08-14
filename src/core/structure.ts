@@ -4,8 +4,8 @@
  */
 
 import { ChangeSet } from "@codemirror/state";
-import { makeChangeSet } from "./document.js";
-import { getNode } from "./tree.js";
+import { applyChangeSet, makeChangeSet } from "./document.js";
+import { getNode, projectTree } from "./tree.js";
 import type { StructureSchema, Tree } from "./types.js";
 
 export type StructureAction =
@@ -15,7 +15,16 @@ export type StructureAction =
       nodeId: string;
       /** New ATX depth (# count). Must map to a schema rank. */
       headingDepth: number;
-    };
+    }
+  | {
+      type: "moveNode";
+      nodeId: string;
+      /** Destination parent, or `null` for a document root. */
+      parentId: string | null;
+      /** Final index among the destination parent's children (or roots). */
+      index: number;
+    }
+  | { type: "renameNode"; nodeId: string; title: string };
 
 export type StructurePlan =
   | { ok: true; changes: ChangeSet; targetNodeId: string }
@@ -96,5 +105,117 @@ export function planStructureAction(
     return { ok: true, changes, targetNodeId: action.nodeId };
   }
 
+  if (action.type === "renameNode") {
+    const node = getNode(tree, action.nodeId);
+    if (!node) return { ok: false, reason: "not_found" };
+    const headingText = doc.slice(node.heading.from, node.heading.to);
+    const m = /^(#{1,6}[ \t]+)(.*)$/.exec(headingText);
+    if (!m) return { ok: false, reason: "unsupported" };
+    if (m[2] === action.title) return { ok: false, reason: "unsupported" };
+    const insert = m[1]! + action.title;
+    const changes = makeChangeSet(doc.length, {
+      from: node.heading.from,
+      to: node.heading.to,
+      insert,
+    });
+    return { ok: true, changes, targetNodeId: action.nodeId };
+  }
+
+  if (action.type === "moveNode") {
+    return planMoveNode(doc, tree, schema, action);
+  }
+
   return { ok: false, reason: "unsupported" };
+}
+
+function isDescendant(tree: Tree, ancestorId: string, nodeId: string): boolean {
+  let id: string | null = nodeId;
+  while (id) {
+    if (id === ancestorId) return true;
+    id = getNode(tree, id)?.parentId ?? null;
+  }
+  return false;
+}
+
+function clampIndex(index: number, length: number): number {
+  if (index < 0) return 0;
+  if (index > length) return length;
+  return index;
+}
+
+/**
+ * Splice a node's subtree so tree projection yields the requested parent + index.
+ * Verified by applying to a copy (R7) — heading ranks, not parentId, are truth.
+ */
+function planMoveNode(
+  doc: string,
+  tree: Tree,
+  schema: StructureSchema,
+  action: { type: "moveNode"; nodeId: string; parentId: string | null; index: number },
+): StructurePlan {
+  const node = getNode(tree, action.nodeId);
+  if (!node) return { ok: false, reason: "not_found" };
+  if (action.parentId === action.nodeId) return { ok: false, reason: "r7" };
+  if (action.parentId && !getNode(tree, action.parentId)) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (action.parentId && isDescendant(tree, action.nodeId, action.parentId)) {
+    return { ok: false, reason: "r7" };
+  }
+  if (action.parentId) {
+    const parent = getNode(tree, action.parentId)!;
+    if (node.rank <= parent.rank) return { ok: false, reason: "r7" };
+  }
+
+  const destIds = action.parentId
+    ? [...(getNode(tree, action.parentId)?.childIds ?? [])]
+    : [...tree.roots];
+  const without = destIds.filter((id) => id !== action.nodeId);
+  const index = clampIndex(action.index, without.length);
+
+  let insertPos: number;
+  if (without.length === 0) {
+    if (action.parentId) {
+      insertPos = getNode(tree, action.parentId)!.ownRange.to;
+    } else {
+      insertPos = 0;
+    }
+  } else if (index < without.length) {
+    insertPos = getNode(tree, without[index]!)!.subtreeRange.from;
+  } else {
+    insertPos = getNode(tree, without[without.length - 1]!)!.subtreeRange.to;
+  }
+
+  const from = node.subtreeRange.from;
+  const to = node.subtreeRange.to;
+  if (insertPos > from && insertPos < to) return { ok: false, reason: "r7" };
+  if (insertPos === from) return { ok: false, reason: "unsupported" };
+
+  let block = doc.slice(from, to);
+  if (block.length === 0) return { ok: false, reason: "unsupported" };
+  if (!block.endsWith("\n") && to < doc.length && insertPos !== doc.length) {
+    block += "\n";
+  }
+
+  const specs =
+    insertPos <= from
+      ? [
+          { from: insertPos, to: insertPos, insert: block },
+          { from, to, insert: "" },
+        ]
+      : [
+          { from, to, insert: "" },
+          { from: insertPos, to: insertPos, insert: block },
+        ];
+  const changes = makeChangeSet(doc.length, specs);
+  const next = applyChangeSet(doc, changes);
+  const tree2 = projectTree(next, schema);
+  const moved = getNode(tree2, action.nodeId);
+  if (!moved) return { ok: false, reason: "r7" };
+  if (moved.parentId !== action.parentId) return { ok: false, reason: "r7" };
+  const siblings = moved.parentId
+    ? (getNode(tree2, moved.parentId)?.childIds ?? [])
+    : tree2.roots;
+  if (siblings.indexOf(action.nodeId) !== index) return { ok: false, reason: "r7" };
+  return { ok: true, changes, targetNodeId: action.nodeId };
 }

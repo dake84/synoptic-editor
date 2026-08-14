@@ -1,4 +1,4 @@
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, Facet } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { createTimeline } from "../../../src/core/timeline.js";
 import { createSession } from "../../../src/session.js";
@@ -403,5 +403,18 @@ see \\# here
     const before = s.selectionHead(b.id);
     s.dispatch(a.id, [{ selection: EditorSelection.cursor(s.scopeRangeOf(a.id).from + 3) }]);
     expect(s.selectionHead(b.id)).toBe(before);
+  });
+
+  /** @covers I1, I3 */
+  it("keeps document sync when the view has host extensions", () => {
+    const hostMark = Facet.define<string>();
+    const s = session();
+    const v = s.createView({
+      scope: { nodeId: "n0" },
+      extensions: [hostMark.of("ok")],
+    });
+    s.dispatch(v.id, [{ changes: { from: s.document.indexOf("Root body"), insert: "X" } }]);
+    expect(s.document).toContain("XRoot body");
+    expect(s.excerpt(v.id)).toContain("XRoot body");
   });
 });

@@ -15,6 +15,7 @@ export function createTimeline(): Timeline {
 }
 
 export type {
+  CoordRect,
   CreateSessionOptions,
   CreateViewOptions,
   ForeignTimelineCommand,

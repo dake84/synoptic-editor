@@ -3,6 +3,7 @@
   "exports": [
     "createSession",
     "createTimeline",
+    "CoordRect",
     "CreateSessionOptions",
     "CreateViewOptions",
     "ForeignTimelineCommand",

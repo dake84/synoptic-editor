@@ -50,6 +50,10 @@ export class Timeline {
     return this.next;
   }
 
+  get redoDepth(): number {
+    return this.entries.length - this.next;
+  }
+
   peek(): TimelineEntry | undefined {
     return this.next > 0 ? this.entries[this.next - 1] : undefined;
   }

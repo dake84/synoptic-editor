@@ -53,3 +53,38 @@ export function visibleNodeFromView(view: EditorView, tree: Tree, range?: Range)
     range,
   );
 }
+
+/** Box relative to the scroll port, including current scroll offset (SPEC G4). */
+export type CoordRect = {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+};
+
+/**
+ * Document-range box in scroll-port coordinates (for `position: absolute` inside
+ * `scrollDOM`). Returns null when positions are off-document or layout is unavailable.
+ * Must not be called during EditorView.update (T13 / G7).
+ */
+export function coordsRelativeToScrollPort(
+  view: EditorView,
+  from: number,
+  to: number,
+): CoordRect | null {
+  const len = view.state.doc.length;
+  const a = Math.max(0, Math.min(from, len));
+  const b = Math.max(0, Math.min(to, len));
+  const start = view.coordsAtPos(a);
+  const end = view.coordsAtPos(b);
+  if (!start || !end) return null;
+  const port = view.scrollDOM.getBoundingClientRect();
+  const scrollTop = view.scrollDOM.scrollTop;
+  const scrollLeft = view.scrollDOM.scrollLeft;
+  return {
+    top: Math.min(start.top, end.top) - port.top + scrollTop,
+    left: Math.min(start.left, end.left) - port.left + scrollLeft,
+    bottom: Math.max(start.bottom, end.bottom) - port.top + scrollTop,
+    right: Math.max(start.right, end.right) - port.left + scrollLeft,
+  };
+}

@@ -3,6 +3,7 @@
  * Runtime extras on the Session class are not part of this contract.
  */
 
+import type { Extension } from "@codemirror/state";
 import type { InlineRefStyle } from "./core/chips.js";
 import type { SearchHit, SearchHitClass } from "./core/search.js";
 import type { StructureAction } from "./core/structure.js";
@@ -59,6 +60,14 @@ export interface CreateViewOptions {
   presentation?: Presentation;
   grain?: number;
   state?: ViewRestoreState;
+  /**
+   * View-local CM6 extensions, appended after session chrome (reconfigured
+   * with presentation). Must not add `history()` or bind undo/redo to the
+   * view state; must not use `scrollIntoView` as navigation (I1, I3, I4).
+   */
+  extensions?: Extension[];
+  /** Extra extensions for one presentation only (e.g. host heading chrome in wysiwyg). */
+  presentationExtensions?: Partial<Record<Presentation, Extension[]>>;
 }
 
 export interface ReadNode {
@@ -82,6 +91,14 @@ export type SessionEvent =
   | { type: "tracked"; id: TrackedPositionId }
   | { type: "scopeLost"; viewId: string };
 
+/** Box relative to `scrollPort`, including scroll offset (SPEC § 12.1 G4). */
+export type CoordRect = {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+};
+
 export interface ViewHandle {
   readonly id: string;
   mount(el: HTMLElement): void;
@@ -92,8 +109,25 @@ export interface ViewHandle {
   setGrain(rank: number): void;
   navigateTo(nodeId: string): void;
   scrollToNode(nodeId: string, cause: string): void;
+  /** Scroll a document range into view. `cause` is required (I4). */
+  reveal(from: number, to: number, cause: string): void;
+  /**
+   * Replace host extensions (same rules as `createView`). Reconfigures chrome;
+   * does not remount or clear history.
+   */
+  setExtensions(
+    extensions: Extension[],
+    presentationExtensions?: Partial<Record<Presentation, Extension[]>>,
+  ): void;
+  /**
+   * Range box relative to `scrollPort` (SPEC G4). Null when unmounted or layout
+   * unavailable (G6). Do not call during EditorView.update (G7 / T13).
+   */
+  coords(from: number, to: number): CoordRect | null;
+  /** Scroll owner element (I4), or null when unmounted (G5 / G6). */
+  readonly scrollPort: HTMLElement | null;
   readonly visibleNode: string | null;
-  find(query: string, opts: { mode: "view" | "document" }): SearchHit[];
+  find(query: string, opts: { mode: "view" | "document"; activate?: boolean }): SearchHit[];
   findNext(): SearchHit | null;
   findPrev(): SearchHit | null;
   replace(hitId: string, text: string): void;
@@ -113,6 +147,7 @@ export interface Session {
   readonly visibleNode: string | null;
   readonly focusedViewId: string | null;
   readonly timelineDepth: number;
+  readonly redoDepth: number;
   view(id: string): ViewHandle | undefined;
   isDirty(nodeId: string): boolean;
   isSubtreeDirty(nodeId: string): boolean;

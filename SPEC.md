@@ -434,32 +434,39 @@ Im Gegensatz zum Frontmatter-Formular ersetzen Inline-Widgets eine Textstelle, d
 sichtbare Beschriftung **Fließtext-Rang** hat.
 
 **Eine Syntax je Session** (`policy.inlineRefStyle`, § 4). Beide Styles projizieren auf
-dieselbe L1-Einheit: sichtbares Label, totes Chrome. Die Komponente resolvt keine
-Beschriftung aus `id`/`type` — das geschriebene Label *ist* die Anzeige (W1). Hover- und
-Katalogdaten liegen beim Host.
+dieselbe L1-Einheit: sichtbares Label, totes Chrome. Hover- und Katalogdaten liegen beim
+Host.
 
 | Style | Syntax | Voreinstellung |
 | ----- | ------ | -------------- |
 | `attribute-block` | `[label]{id=… type=…}` | ja |
-| `html-ref` | `<(type)-ref …>label</(type)-ref>` | |
+| `html-ref` | `<(type)-ref …>label</(type)-ref>` · Selbstschluss `<(type)-ref … />` | |
 
-`label` ist sichtbarer Fließtext. Chrome (`{…}` bzw. Start-/End-Tag samt Attributen) ist in
-`wysiwyg` ausgeblendet und nicht suchbar. `type` im html-ref-Tag ist ein undurchsichtiger
-Token (Namensfragment vor dem Suffix `-ref`), keine Domäne. Übrige Attribute sind
-undurchsichtig. Label und Chrome bilden **eine** L1-Einheit.
+`label` ist sichtbarer Fließtext, wenn ein Textknoten existiert. Chrome (`{…}` bzw.
+Start-/End-Tag samt Attributen) ist in `wysiwyg` ausgeblendet und nicht suchbar. `type`
+im html-ref-Tag ist ein undurchsichtiger Token (Namensfragment vor dem Suffix `-ref`),
+keine Domäne. Übrige Attribute sind undurchsichtig. Label und Chrome bilden **eine**
+L1-Einheit.
 
-Kein Chip — und damit kein Widget — sind: leerer Textknoten, Selbstschluss (`/>`),
-abweichender End-Tag, verschachteltes Markup im Label (`<` im Textknoten). Roh-HTML, das
-kein Chip ist, bleibt Quelltext (§ 8.5).
+**html-ref ohne Textknoten** (W7): Selbstschluss (`<(type)-ref … />`) und leeres Element
+(`<(type)-ref …></(type)-ref>`, auch nur Whitespace im Rumpf) sind Chips. Sichtbare
+Beschriftung ist synthetisch: Wert von `id`, sonst `type`, sonst `ref`. In `wysiwyg` ein
+Ersatz-Widget über die ganze Einheit. Suche trifft diese Beschriftung an der
+Label-Spanne (id-Wert oder type-Token). Ersetzen schreibt dieselbe Spanne — bei
+vorhandenem `id` den Attributwert, nicht das ganze Tag (RP1). Ohne `id` den type-Token.
+
+Kein Chip — und damit kein Widget — sind: abweichender End-Tag, verschachteltes Markup
+im Label (`<` im Textknoten). Roh-HTML, das kein Chip ist, bleibt Quelltext (§ 8.5).
 
 | # | Regel |
 | - | ----- |
-| **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10), hervorhebbar und **als Teilstring selektierbar**. |
-| **W2** | Nicht sichtbare Anteile (Attribute, Ids, Marker, Tags) nehmen an der Suche nicht teil. |
+| **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10) und hervorhebbar. Mit Textknoten: das geschriebene Label *ist* die Anzeige, **als Teilstring selektierbar**. Ohne Textknoten (W7): synthetische Beschriftung; findbar, nicht teilstring-selektierbar (wie Pills, F7). Die Komponente resolvt keine Katalogdaten — Hover liegt beim Host. |
+| **W2** | Nicht sichtbare Anteile (übrige Attribute, Marker, Tags) nehmen an der Suche nicht teil. Ausnahme W7: der id-Wert bzw. der type-Token *ist* das Label, nicht verstecktes Chrome. |
 | **W3** | Löschen erfasst die gesamte Widget-Einheit oder nichts (L1). |
 | **W4** | Widgets überstehen Presentation-, Scope- und Grain-Wechsel funktionsfähig. |
 | **W5** | Fokus in einem Widget entzieht der Text-View den Cursor nicht, solange der Bearbeiter es nicht anspricht. |
 | **W6** | Genau ein `inlineRefStyle` je Session. Hide, Atom, Find, Replace und L1 laufen über **einen** Scanner auf diese Einheit (I6). Die andere Syntax ist in derselben Session gewöhnlicher Quelltext. |
+| **W7** | html-ref Selbstschluss und leeres Element sind Chips ohne Textknoten. Widget über die ganze Einheit; Label = `id` \| `type` \| `ref`. |
 
 ### 8.4 Metadaten-Pills
 
@@ -584,9 +591,11 @@ ein Modus mit einem Parameter:
 | **F8** | Frontmatter-Formularfelder nehmen nicht teil (FM7); ihre als Pill gerenderten Werte schon (P5). |
 | **F9** | Jeder Treffer trägt eine **Klasse**: `prose` (Trefferstelle im Fließtext) oder `metadata` (Trefferstelle im Frontmatter, dargestellt als Pill). Die Klasse steuert das Ersetzen (§ 10.3). |
 
-F6/F7 sind der Grund, warum Überschriften und Chip-Beschriftungen als **echter Text** und
-nicht als Ersatz-Widget gerendert werden müssen — ein reines `Decoration.replace` ohne
-Textinhalt wäre nicht selektierbar.
+F6/F7 sind der Grund, warum Überschriften und Chip-Beschriftungen **mit Textknoten** als
+**echter Text** und nicht als Ersatz-Widget gerendert werden müssen — ein reines
+`Decoration.replace` ohne Textinhalt wäre nicht selektierbar. html-ref ohne Textknoten
+(W7) hat keinen solchen Knoten: Widget, findbar über die Label-Spanne, Selektion wie
+Pills (F7).
 
 ### 10.3 Ersetzen
 
@@ -752,7 +761,7 @@ steht.
 | `session.activeNode` · `session.visibleNode` | lesend, abgeleitet |
 | `session.focusedViewId` | lesend — welche View Fokus hat (O6; globale Suche in § 13.2) |
 | `session.view(id)` | lesend — Handle oder `undefined`; `scopeLost` trägt nur die Id |
-| `session.timelineDepth` | lesend — Tiefe der einen Timeline (I3, § 13.2 Undo-Bedienung) |
+| `session.timelineDepth` · `session.redoDepth` | lesend — Tiefe der einen Timeline (I3, § 13.2 Undo-Bedienung) |
 | `session.isDirty(nodeId)` · `session.isSubtreeDirty(nodeId)` | lesend, abgeleitet |
 | `session.undo()` · `session.redo()` | Kommando — der eine Eintrittspunkt (I3). Nicht `timeline.undo` |
 | `session.apply(action)` | Kommando — Strukturaktion (§ 7.3, `StructureAction`) |
@@ -772,8 +781,12 @@ steht.
 | `view.setPresentation(p)` · `setGrain(rank)` | Kommando |
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
+| `view.reveal(from, to, cause)` | Kommando — Range in den Viewport (Find-Offsets); `cause` Pflicht (I4) |
+| `view.setExtensions(extensions, presentationExtensions?)` | Kommando — Host-Extensions ohne Remount (I3/U8) |
+| `view.coords(from, to)` | lesend — Box relativ zum Scrollport (§ 12.1); `null` wenn ungemountet oder Position ungültig |
+| `view.scrollPort` | lesend — Scroll-Owner-Element (I4) oder `null` wenn ungemountet |
 | `view.visibleNode` | lesend |
-| `view.find(query, { mode: 'view' \| 'document' })` | Kommando (§ 10.1) → `SearchHit[]` |
+| `view.find(query, { mode: 'view' \| 'document', activate?: boolean })` | Kommando (§ 10.1) → `SearchHit[]`. `activate: false` malt Treffer ohne Scroll/Selektion (Suchleiste beim Tippen). |
 | `view.findNext()` · `view.findPrev()` | Kommando — aktiver Treffer (F3/F10) → `SearchHit \| null` |
 | `view.replace(hitId, text)` · `view.replaceAll(text, { classes })` | Kommando (§ 10.3) |
 | `view.focus()` | Kommando |
@@ -802,9 +815,26 @@ der Implementierung darf intern mehr können; das ist kein Host-Vertrag.
 { type: 'scopeLost', viewId: string }
 ```
 
+### 12.1 Geometrie für Host-Overlays
+
+Hosts, die Annotationen oder Randnotizen **in derselben Scroll-Achse** wie den Text
+zeichnen, brauchen Positionen — nicht den `EditorView`. Die Komponente exportiert deshalb
+nur Geometrie:
+
+| Regel | Inhalt |
+| ----- | ------ |
+| **G4** | `coords(from, to)` liefert eine Box **relativ zum Scrollport**, inkl. aktuellem `scrollTop`/`scrollLeft` — geeignet für `position: absolute` in einem Kind von `scrollPort`. Nicht Viewport-relativ, nicht als Persistenz (V3). |
+| **G5** | `scrollPort` ist das Element, das scrollt (I4). Overlay-Wurzeln hängen der Host dort ein. |
+| **G6** | Ungemountet: `coords` → `null`, `scrollPort` → `null`. Kein Throw. |
+| **G7** | Hosts rufen `coords` **nicht** während eines Dispatch/Update-Zyklus auf (T13). Messung gehört in den Mess-/Scroll-Zyklus oder Host-`requestAnimationFrame`. |
+
+Papierbogen, angepinnte Heading und Gutter-UI sind **Host-Chrome**, kein Teil dieser API.
+
 ### Typen (Auszug)
 
 ```
+CoordRect = { top: number, left: number, bottom: number, right: number }
+
 SearchHit = {
   id:    string,
   from:  number,              // document offset (pill hits: YAML value range)
@@ -815,9 +845,22 @@ SearchHit = {
 StructureAction =
   | { type: 'deleteNode', nodeId: string }
   | { type: 'changeHeadingDepth', nodeId: string, headingDepth: number }
+  | { type: 'moveNode', nodeId: string, parentId: string | null, index: number }
+  | { type: 'renameNode', nodeId: string, title: string }
 
 replaceAll → { prose: number, metadata: number, rejected?: number }
 ```
+
+`createView` nimmt optional `extensions` (alle Präsentationen) und
+`presentationExtensions` (`source` / `wysiwyg`). Host-Extensions hängen **hinter**
+dem Session-Chrome und werden mit der Präsentation neu konfiguriert. Sie dürfen
+kein `history()` ergänzen, Undo/Redo nicht an den View-State binden und
+`scrollIntoView` nicht als Navigation nutzen (I1, I3, I4). `EditorView` bleibt
+außerhalb von § 12; Injection ist der Extensions-Slot. Overlay-Hosts nutzen
+`coords` / `scrollPort` (G4–G7), nicht `EditorView.findFromDOM`.
+
+`moveNode` platziert den Subtree so, dass die Tree-Projektion denselben Parent und
+Index ergibt — eine Rangverletzung oder ein Zug in den eigenen Subtree ist R7.
 
 `replaceAll` zählt getrennt (RP5) und weist YAML-Treffer ab (RP6).
 
@@ -1063,8 +1106,9 @@ darf auf Zeit warten (I5).
 | T54 | Widget übersteht Presentation-, Scope- und Grain-Wechsel funktionsfähig (W4). |
 | T55 | Feld leeren erzeugt gültiges Markdown. |
 | T56 | Fokus im Widget stiehlt der Text-View den Cursor nicht (W5). |
-| **T121** | `html-ref`: leerer Textknoten, Selbstschluss und abweichender End-Tag sind kein Chip (W6). |
+| **T121** | `html-ref`: abweichender End-Tag und `<` im Textknoten sind kein Chip (W6). |
 | **T124** | `attribute-block` interpretiert html-ref-Syntax nicht als Chip und umgekehrt (W6). |
+| **T125** | `html-ref`: Selbstschluss (`/>`) und leeres Element sind Chips; sichtbares Label = `id` \| `type` \| `ref`; Find trifft das Label; Ersetzen mit `id` schreibt den Attributwert (W7/RP1). |
 
 ### Selektionsunabhängigkeit
 
@@ -1072,6 +1116,13 @@ darf auf Zeit warten (I5).
 | - | ---- |
 | T107 | Relation `identical`: Cursor in View A setzen. View B behält ihren eigenen Cursor — Selektion ist nie geteilt, auch nicht bei gleichem Scope (§ 11.2, G3). |
 | T108 | Relation `disjoint`: Cursor in View A setzen. View B vollständig unberührt (§ 11.3, G3). |
+
+### Geometrie (Host-Overlays)
+
+| # | Fall | Begründung |
+| - | ---- | ---------- |
+| **T126** | Ungemountet: `scrollPort` ist `null`, `coords(0, 0)` ist `null` (G6). Nach `mount` ist `scrollPort` das CM6-`scrollDOM`; `coords` für eine gültige Range liefert eine Box mit `bottom ≥ top` und `right ≥ left` (G4/G5). | Vertrag für Overlay ohne `EditorView`-Leak |
+| **T127** | `coords` liegt relativ zum Scrollport inkl. Scroll-Offset: nach programmatischem Scroll ändert sich die Box konsistent mit `scrollTop` (G4); Persistenz bleibt TrackedPosition, nicht Pixel (V3). | Overlay wandert mit dem Text |
 
 ---
 

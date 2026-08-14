@@ -2,10 +2,10 @@
  * Session: one document, one timeline, many views (SPEC.md § 3, § 7.3, § 11, § 12).
  */
 
-import { EditorSelection, Transaction } from "@codemirror/state";
+import { EditorSelection, Transaction, type Extension } from "@codemirror/state";
 import { Compartment } from "@codemirror/state";
 import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
-import { EditorView } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 import { DirtyState } from "./core/dirty.js";
 import { invertChangeSet } from "./core/document.js";
 import { planFieldWrite, wouldBreakYamlValue } from "./core/frontmatter.js";
@@ -42,7 +42,7 @@ import {
   type IncludeMode,
   type Presentation,
 } from "./view/presentation.js";
-import { readingLinePos, scrollCause, scrollToPos, visibleNodeFromView } from "./view/scroll.js";
+import { coordsRelativeToScrollPort, readingLinePos, scrollCause, scrollToPos, visibleNodeFromView } from "./view/scroll.js";
 import {
   createScopeRangeField,
   rangeRelation,
@@ -106,6 +106,8 @@ interface ViewSlot {
   findActive: number;
   rangeField: ReturnType<typeof createScopeRangeField>;
   compartment: Compartment;
+  hostExtensions: Extension[];
+  presentationExtensions: Partial<Record<Presentation, Extension[]>>;
   handle: ViewHandle;
 }
 
@@ -215,6 +217,10 @@ export class Session implements PublicSession {
 
   get timelineDepth(): number {
     return this.timeline.depth;
+  }
+
+  get redoDepth(): number {
+    return this.timeline.redoDepth;
   }
 
   get activeNode(): string | null {
@@ -431,6 +437,8 @@ export class Session implements PublicSession {
       findActive: -1,
       rangeField: createScopeRangeField({ from: 0, to: 0, lost: false }),
       compartment: new Compartment(),
+      hostExtensions: opts.extensions ?? [],
+      presentationExtensions: opts.presentationExtensions ?? {},
       handle: this.makeHandle(id),
     };
     this.views.set(id, slot);
@@ -499,6 +507,10 @@ export class Session implements PublicSession {
 
   private chrome(slot: ViewSlot) {
     const locked = this.policy.structureEditingInWysiwyg === "locked";
+    const host =
+      slot.presentation === "wysiwyg"
+        ? [...slot.hostExtensions, ...(slot.presentationExtensions.wysiwyg ?? [])]
+        : [...slot.hostExtensions, ...(slot.presentationExtensions.source ?? [])];
     if (slot.presentation === "wysiwyg") {
       return [
         wysiwygDecorationField(slot.rangeField),
@@ -514,9 +526,10 @@ export class Session implements PublicSession {
         }),
         wysiwygGuards({ structureLocked: locked, inlineRefStyle: this.policy.inlineRefStyle }),
         grainField(slot.rangeField, this.schema, slot.grain),
+        ...host,
       ];
     }
-    return [hideOutsideField(slot.rangeField), grainField(slot.rangeField, this.schema, slot.grain)];
+    return [hideOutsideField(slot.rangeField), grainField(slot.rangeField, this.schema, slot.grain), ...host];
   }
 
   /** Form / API path (L5): writes YAML via one ChangeSet (FM3). */
@@ -554,6 +567,32 @@ export class Session implements PublicSession {
         next: () => this.stepFind(slot.id, 1) != null,
         prev: () => this.stepFind(slot.id, -1) != null,
       }),
+      keymap.of([
+        {
+          key: "Mod-z",
+          preventDefault: true,
+          run: () => {
+            this.undo();
+            return true;
+          },
+        },
+        {
+          key: "Mod-y",
+          preventDefault: true,
+          run: () => {
+            this.redo();
+            return true;
+          },
+        },
+        {
+          key: "Mod-Shift-z",
+          preventDefault: true,
+          run: () => {
+            this.redo();
+            return true;
+          },
+        },
+      ]),
       slot.compartment.of(this.chrome(slot)),
     ];
     this.sync.addView(slot.id, extensions, slot.compartment, selection);
@@ -682,10 +721,45 @@ export class Session implements PublicSession {
         scrollToPos(ev, node.subtreeRange.from, cause);
         session.scheduleMeasure();
       },
+      reveal(from: number, to: number, cause: string) {
+        const slot = session.requireSlot(id);
+        slot.lastScrollCause = cause;
+        const node = nodeAtPosition(session.treeState, from);
+        if (node) {
+          const range = viewRange(session.sync.getState(id));
+          const inside = node.subtreeRange.from >= range.from && node.subtreeRange.to <= range.to;
+          if (!inside) {
+            this.setScope(node.id, { include: slot.scope.include });
+          }
+        }
+        const ev = session.sync.editorView(id);
+        if (!ev) return;
+        const head = Math.max(0, Math.min(from, ev.state.doc.length));
+        const anchor = Math.max(head, Math.min(to, ev.state.doc.length));
+        ev.dispatch({
+          effects: EditorView.scrollIntoView(EditorSelection.range(head, anchor), { y: "nearest" }),
+          annotations: [scrollCause.of(cause), Transaction.addToHistory.of(false)],
+        });
+        session.scheduleMeasure();
+      },
+      setExtensions(extensions, presentationExtensions) {
+        const slot = session.requireSlot(id);
+        slot.hostExtensions = extensions;
+        if (presentationExtensions) slot.presentationExtensions = presentationExtensions;
+        session.refreshChrome(slot);
+      },
+      coords(from: number, to: number) {
+        const ev = session.sync.editorView(id);
+        if (!ev) return null;
+        return coordsRelativeToScrollPort(ev, from, to);
+      },
+      get scrollPort() {
+        return session.sync.editorView(id)?.scrollDOM ?? null;
+      },
       get visibleNode() {
         return session.views.get(id)?.visibleNode ?? null;
       },
-      find(query: string, opts: { mode: "view" | "document" }) {
+      find(query: string, opts: { mode: "view" | "document"; activate?: boolean }) {
         const slot = session.requireSlot(id);
         const range =
           opts.mode === "view"
@@ -703,8 +777,13 @@ export class Session implements PublicSession {
         slot.findHits = hits;
         slot.findQuery = query;
         slot.findMode = opts.mode;
-        slot.findActive = hits.length > 0 ? 0 : -1;
-        session.activateFindHit(id);
+        const activate = opts.activate !== false;
+        slot.findActive = hits.length > 0 && activate ? 0 : -1;
+        if (activate) {
+          session.activateFindHit(id);
+        } else {
+          session.paintFindHits(id);
+        }
         return hits;
       },
       findNext() {
@@ -780,6 +859,7 @@ export class Session implements PublicSession {
         session.sync.editorView(id)?.focus();
         session.emit({ type: "focus", viewId: id });
       },
+      /** Test/harness only — not on the public ViewHandle (SPEC § 12). */
       editorView() {
         return session.sync.editorView(id);
       },
@@ -801,6 +881,24 @@ export class Session implements PublicSession {
     const inside = node.subtreeRange.from >= range.from && node.subtreeRange.to <= range.to;
     if (!inside) handle.setScope(nodeId);
     handle.scrollToNode(nodeId, "undo");
+  }
+
+  /** Paint find marks without scrolling or moving the caret (host find bar while typing). */
+  private paintFindHits(viewId: string): void {
+    const slot = this.requireSlot(viewId);
+    this.sync.dispatchSpecs(viewId, [
+      {
+        effects: [
+          setFindQuery.of(slot.findQuery),
+          setFindHighlights.of({
+            hits: slot.findHits,
+            active: slot.findActive,
+            presentation: slot.presentation,
+          }),
+        ],
+        annotations: [Transaction.addToHistory.of(false)],
+      },
+    ]);
   }
 
   /** F10: step active hit; wrap; reveal per the list's mode. */
