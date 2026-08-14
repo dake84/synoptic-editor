@@ -1,6 +1,6 @@
 {
   "name": "synoptic-editor",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Multi-view markdown editing core: one document, many synchronized views, on CodeMirror 6.",
@@ -8,7 +8,26 @@
   "engines": {
     "node": ">=20"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./theme.css": "./dist/theme.css"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "SPEC.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json && cp src/theme.css dist/theme.css",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test:unit": "vitest run tests/unit",
@@ -17,6 +36,8 @@
     "spike:phase0": "npm run spike:phase0:build && npx --yes serve spikes/phase-0 -l 4174",
     "harness:build": "esbuild harness/main.ts --bundle --outfile=harness/dist/bundle.js --format=iife --platform=browser",
     "harness": "npm run harness:build && npx --yes serve harness -l 4173",
+    "example:host:build": "cp src/theme.css examples/host/theme.css && esbuild examples/host/main.ts --bundle --outfile=examples/host/dist/bundle.js --format=iife --platform=browser",
+    "example:host": "npm run example:host:build && npx --yes serve examples/host -l 4175",
     "check:core-purity": "node scripts/check-core-purity.mjs",
     "check:no-waiting": "node scripts/check-no-waiting.mjs",
     "check:rules-covered": "node scripts/check-rules-covered.mjs",

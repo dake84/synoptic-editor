@@ -3,7 +3,12 @@
  */
 
 import { EditorSelection } from "@codemirror/state";
-import { FIXTURE_SCHEMA } from "../tests/fixtures/corpus.js";
+import {
+  CORPUS_NODE_TARGETS,
+  FIXTURE_SCHEMA,
+  generateCorpus,
+  type CorpusSize,
+} from "../tests/fixtures/corpus.js";
 import { createSession, type Session, type SessionEvent } from "../src/session.js";
 import type { ViewRestoreState } from "../src/view-handle.js";
 import type { StructureAction } from "../src/core/structure.js";
@@ -69,6 +74,7 @@ const wrappers = new Map<string, HTMLElement>();
 const savedStates: ViewRestoreState[] = [];
 /** Survives paintFactory rebuilds (otherwise find results flash then reset to —). */
 let findStatus = "—";
+let corpusStatus = "demo";
 
 function pane(id: string): HTMLElement {
   let el = panes.get(id);
@@ -226,7 +232,17 @@ function paintSessionBar(): void {
 
 function paintFactory(): void {
   const depths = session.schema.levels.map((l) => l.headingDepth);
+  const sizes = (["S", "M", "L"] as const).map(
+    (s) =>
+      `<button type="button" data-cmd="load-corpus" data-size="${s}">${s} (${CORPUS_NODE_TARGETS[s]})</button>`,
+  );
   document.getElementById("factory-bar")!.innerHTML = `
+    <fieldset>
+      <legend>corpus</legend>
+      <button type="button" data-cmd="load-corpus" data-size="demo">demo</button>
+      ${sizes.join("")}
+      <span id="corpus-out">${esc(corpusStatus)}</span>
+    </fieldset>
     <fieldset>
       <legend>openView</legend>
       ${nodeSelect("open-node")}
@@ -247,6 +263,8 @@ function paintFactory(): void {
       <input name="find-q" placeholder="query (Alpha / pinned / #)" size="22" />
       <button type="button" data-cmd="find" data-mode="view">find view</button>
       <button type="button" data-cmd="find" data-mode="document">find document</button>
+      <button type="button" data-cmd="find-next">F3 next</button>
+      <button type="button" data-cmd="find-prev">Shift+F3 prev</button>
       <input name="replace-text" placeholder="replace with" size="10" />
       <button type="button" data-cmd="replace-all">replaceAll prose</button>
       <button type="button" data-cmd="replace-meta">replaceAll +metadata</button>
@@ -283,6 +301,16 @@ function paint(): void {
   paintFactory();
   restoreInputs(document.getElementById("session-bar"), sessionVals);
   restoreInputs(document.getElementById("factory-bar"), factoryVals);
+}
+
+function formatFindStatus(target: string | null): string {
+  const v = target ? session.view(target) : null;
+  if (!v || !target) return "—";
+  const n = v.findCount;
+  const i = v.findIndex;
+  const scope = session.scopeOf(target).nodeId;
+  if (n === 0) return `0 hits via ${target}@${scope}`;
+  return `${i + 1}/${n} via ${target}@${scope}`;
 }
 
 function named<T extends HTMLElement>(root: ParentNode, name: string): T | null {
@@ -338,15 +366,25 @@ function onChromeClick(ev: Event): void {
     const nodeId = named<HTMLSelectElement>(factory, "struct-node")?.value;
     const headingDepth = Number(named<HTMLSelectElement>(factory, "struct-depth")?.value);
     if (nodeId) api.applyStructure({ type: "changeHeadingDepth", nodeId, headingDepth });
+  } else if (cmd === "load-corpus") {
+    const size = (btn.dataset.size ?? "demo") as "demo" | CorpusSize;
+    api.loadCorpus(size);
   } else if (cmd === "find") {
     const mode = btn.dataset.mode as "view" | "document";
     const q = named<HTMLInputElement>(document.getElementById("factory-bar")!, "find-q")?.value ?? "";
     const target = focusedId();
-    const scope = target ? session.scopeOf(target).nodeId : "?";
     const hits = target ? session.view(target)?.find(q, { mode }) ?? [] : [];
-    findStatus =
-      `${hits.length} hits via ${target ?? "—"}@${scope} mode=${mode}` +
-      (hits.length ? ` (${hits.map((h) => h.class).join(",")})` : q ? "" : " (empty query)");
+    findStatus = formatFindStatus(target) + (hits.length ? ` (${hits.map((h) => h.class).join(",")})` : q ? "" : " (empty query)");
+    paint();
+    return;
+  } else if (cmd === "find-next" || cmd === "find-prev") {
+    const target = focusedId();
+    const v = target ? session.view(target) : null;
+    if (v) {
+      if (cmd === "find-next") v.findNext();
+      else v.findPrev();
+    }
+    findStatus = formatFindStatus(target);
     paint();
     return;
   } else if (cmd === "replace-all" || cmd === "replace-meta") {
@@ -380,6 +418,37 @@ function openView(opts: {
   return handle.id;
 }
 
+function closeAllViews(): void {
+  for (const id of [...session.viewIds()]) api.closeView(id);
+}
+
+/** Load demo fixture or generated S/M/L corpus (SPEC § 15.1); reset views onto first root. */
+function loadCorpus(size: "demo" | CorpusSize): string {
+  const t0 = performance.now();
+  closeAllViews();
+  const doc = size === "demo" ? DOC : generateCorpus(size);
+  session.replaceDocument(doc);
+  events.length = 0;
+  findStatus = "—";
+  const roots = session.tree.roots;
+  const first = roots[0];
+  if (first) {
+    if (size === "demo") {
+      openView({ nodeId: first, include: "subtree", presentation: "wysiwyg" });
+      const second = roots[1];
+      if (second) openView({ nodeId: second, include: "subtree", presentation: "wysiwyg" });
+      openView({ nodeId: first, include: "subtree", presentation: "source" });
+    } else {
+      // Large corpora: one source view on the first root (wysiwyg + forms is heavy on L).
+      openView({ nodeId: first, include: "subtree", presentation: "source" });
+    }
+  }
+  const ms = Math.round(performance.now() - t0);
+  corpusStatus = `${size}: ${session.tree.nodes.size} nodes · ${doc.length} chars · ${ms}ms`;
+  document.getElementById("status")!.textContent = `corpus ${corpusStatus}`;
+  return corpusStatus;
+}
+
 const a = openView({ nodeId: "n0", include: "subtree", presentation: "wysiwyg" });
 const b = openView({ nodeId: "n2", include: "subtree", presentation: "wysiwyg" });
 const c = openView({ nodeId: "n0", include: "subtree", presentation: "source" });
@@ -401,6 +470,7 @@ export type HarnessApi = {
   typeIn: (id: string, text: string) => void;
   setSelection: (id: string, from: number, to?: number) => void;
   replaceDocument: (doc: string) => void;
+  loadCorpus: (size: "demo" | CorpusSize) => string;
   getState: (id: string) => ViewRestoreState | undefined;
   openFromState: (state: ViewRestoreState) => string;
   flush: () => Promise<ReturnType<typeof inspect>>;
@@ -495,6 +565,7 @@ const api: HarnessApi = {
   replaceDocument(doc) {
     session.replaceDocument(doc);
   },
+  loadCorpus,
   getState(id) {
     return session.view(id)?.getState();
   },
@@ -520,6 +591,21 @@ void c;
 Object.assign(window, { __harness: api });
 document.getElementById("status")!.textContent = "ready";
 document.addEventListener("click", onChromeClick);
+document.addEventListener("keydown", (ev) => {
+  if (ev.key !== "F3") return;
+  // Editor bindings (findStepKeymap) handle F3 inside CM; chrome/inputs go through the command.
+  const t = ev.target as HTMLElement | null;
+  if (t?.closest?.(".cm-editor")) return;
+  ev.preventDefault();
+  const target = focusedId();
+  const v = target ? session.view(target) : null;
+  if (v) {
+    if (ev.shiftKey) v.findPrev();
+    else v.findNext();
+  }
+  findStatus = formatFindStatus(target);
+  paint();
+});
 session.subscribe(() => {
   requestAnimationFrame(() => paint());
 });

@@ -209,6 +209,31 @@ describe("phase 3 chips pills search replace", () => {
     expect(hb.length).toBeGreaterThan(0);
   });
 
+  /** @covers T117, F3, F10 */
+  it("findNext and findPrev wrap the view list and leave the other view alone", () => {
+    const s = session();
+    const a = s.createView({ scope: { nodeId: "n0", include: "subtree" }, presentation: "source" });
+    const b = s.createView({ scope: { nodeId: "n1", include: "own" }, presentation: "source" });
+    const hits = a.find("o", { mode: "view" });
+    expect(hits.length).toBeGreaterThan(1);
+    expect(a.findIndex).toBe(0);
+    expect(a.findNext()?.from).toBe(hits[1]!.from);
+    expect(a.findIndex).toBe(1);
+    expect(s.selectionHead(a.id)).toBe(hits[1]!.to);
+    expect(b.findCount).toBe(0);
+    expect(b.findIndex).toBe(-1);
+    a.findPrev();
+    expect(a.findIndex).toBe(0);
+    a.findPrev();
+    expect(a.findIndex).toBe(hits.length - 1);
+
+    b.find("Root", { mode: "document" });
+    expect(s.scopeOf(b.id).nodeId).toBe("n0");
+    const bIndex = b.findIndex;
+    a.findNext();
+    expect(b.findIndex).toBe(bIndex);
+  });
+
   /** @covers T76, T77, T78, T79, T80, T81, T82, RP2, RP3, RP5, RP6, RP7, D1 */
   it("replaceAll is one undo step, respects mode classes and yaml guard", () => {
     const s = session();

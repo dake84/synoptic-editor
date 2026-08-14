@@ -1,0 +1,48 @@
+/* Default chrome for widgets and find hits (SPEC.md § 8, § 10). Hosts may replace this. */
+
+.syn-fm-form {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  background: #f0f4f8;
+  border: 1px solid #bcd;
+  border-radius: 4px;
+}
+
+.syn-fm-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.syn-fm-row input {
+  flex: 1;
+}
+
+.syn-pill {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 1px 8px;
+  background: #eef;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.syn-pill-hit,
+.syn-find-hit {
+  background: #fe9;
+}
+
+.syn-find-hit-active {
+  background: #fc6;
+  outline: 1px solid #c80;
+}
+
+.cm-editor {
+  height: 100%;
+}
+
+.cm-scroller {
+  overflow: auto;
+}

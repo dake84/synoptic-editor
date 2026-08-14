@@ -81,10 +81,19 @@ test.describe("phase 3 harness", () => {
   test("find view reports hits in find-out", async ({ page }) => {
     await page.locator('[name="find-q"]').fill("Alpha");
     await page.locator('[data-cmd="find"][data-mode="view"]').click();
-    await expect(page.locator("#find-out")).toContainText(/hits via .+ mode=view/);
+    await expect(page.locator("#find-out")).toContainText(/via .+/);
     await expect(page.locator("#find-out")).not.toHaveText("—");
     const text = await page.locator("#find-out").textContent();
-    expect(text).toMatch(/^[1-9]\d* hits/);
+    expect(text).toMatch(/^[1-9]\d*\/[1-9]\d*/);
+  });
+
+  /** @covers T117, F10 */
+  test("F3 next advances the active hit in find-out", async ({ page }) => {
+    await page.locator('[name="find-q"]').fill("e");
+    await page.locator('[data-cmd="find"][data-mode="view"]').click();
+    await expect(page.locator("#find-out")).toContainText(/^1\//);
+    await page.locator('[data-cmd="find-next"]').click();
+    await expect(page.locator("#find-out")).toContainText(/^2\//);
   });
 
   /** @covers T48, T75, F5, F9 */

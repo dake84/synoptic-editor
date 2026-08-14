@@ -2,7 +2,7 @@
  * Session: one document, one timeline, many views (SPEC.md § 3, § 7.3, § 11, § 12).
  */
 
-import { ChangeSet, EditorSelection, Transaction } from "@codemirror/state";
+import { EditorSelection, Transaction } from "@codemirror/state";
 import { Compartment } from "@codemirror/state";
 import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
@@ -16,7 +16,7 @@ import {
   type SearchHitClass,
 } from "./core/search.js";
 import { planStructureAction, type StructureAction } from "./core/structure.js";
-import { createTimeline, type Timeline } from "./core/timeline.js";
+import { createTimeline, type Timeline as TimelineImpl } from "./core/timeline.js";
 import {
   createTrackedPositionRegistry,
   type TrackedPositionId,
@@ -28,6 +28,8 @@ import { createSync, type SyncEngine, type ViewId } from "./sync/index.js";
 import {
   findHighlightField,
   findQueryField,
+  findStepFacet,
+  findStepKeymap,
   setFindHighlights,
   setFindQuery,
 } from "./view/find-decorations.js";
@@ -57,43 +59,22 @@ import {
   frontmatterWriteFacet,
 } from "./view/widgets/form.js";
 import { pillField } from "./view/widgets/pills.js";
-import type { ViewHandle, ViewRestoreState, ViewScope } from "./view-handle.js";
+import type {
+  CreateSessionOptions,
+  CreateViewOptions,
+  Policy,
+  Session as PublicSession,
+  SessionEvent,
+} from "./api.js";
+import type { ViewHandle, ViewScope } from "./view-handle.js";
 
-export interface Policy {
-  structureEditingInWysiwyg?: "locked" | "allowed";
-  frontmatterInWysiwyg?: "form" | "hidden";
-  pillFields?: string[];
-}
+export type { CreateSessionOptions, CreateViewOptions, Policy, SessionEvent };
 
 export interface ResolvedPolicy {
   structureEditingInWysiwyg: "locked" | "allowed";
   frontmatterInWysiwyg: "form" | "hidden";
   pillFields: string[];
 }
-
-export interface CreateSessionOptions {
-  doc: string;
-  schema: StructureSchema;
-  policy?: Policy;
-  timeline?: Timeline;
-  strings?: Record<string, string>;
-}
-
-export interface CreateViewOptions {
-  scope?: { nodeId: string; include?: IncludeMode };
-  presentation?: Presentation;
-  grain?: number;
-  state?: ViewRestoreState;
-}
-
-export type SessionEvent =
-  | { type: "document" }
-  | { type: "tree" }
-  | { type: "views" }
-  | { type: "focus" }
-  | { type: "visible" }
-  | { type: "tracked"; id: TrackedPositionId }
-  | { type: "scopeLost"; viewId: string };
 
 export type RelationKind = "identical" | "containing" | "disjoint";
 
@@ -119,6 +100,8 @@ interface ViewSlot {
   ancestry: string[];
   findHits: SearchHit[];
   findQuery: string;
+  findMode: "view" | "document";
+  findActive: number;
   rangeField: ReturnType<typeof createScopeRangeField>;
   compartment: Compartment;
   handle: ViewHandle;
@@ -156,11 +139,11 @@ function survivingAncestor(tree: Tree, nodeId: string, ancestry: string[]): stri
   return tree.roots[0] ?? null;
 }
 
-export class Session {
+export class Session implements PublicSession {
   readonly schema: StructureSchema;
   readonly policy: ResolvedPolicy;
   private readonly sync: SyncEngine;
-  private readonly timeline: Timeline;
+  private readonly timeline: TimelineImpl;
   private readonly tracked: TrackedPositionRegistry;
   private readonly dirty = new DirtyState();
   private treeState: Tree;
@@ -181,7 +164,7 @@ export class Session {
       pillFields: opts.policy?.pillFields ?? [],
     };
     this.sync = createSync(opts.doc);
-    this.timeline = createTimeline(opts.timeline);
+    this.timeline = createTimeline(opts.timeline as TimelineImpl | undefined);
     this.tracked = createTrackedPositionRegistry();
     this.treeState = projectTree(opts.doc, opts.schema);
     this.dirty.markPersisted(opts.doc, this.treeState);
@@ -441,6 +424,8 @@ export class Session {
       ancestry,
       findHits: [],
       findQuery: "",
+      findMode: "view",
+      findActive: -1,
       rangeField: createScopeRangeField({ from: 0, to: 0, lost: false }),
       compartment: new Compartment(),
       handle: this.makeHandle(id),
@@ -561,6 +546,11 @@ export class Session {
       scopeCopyHandler(slot.rangeField),
       findQueryField,
       findHighlightField,
+      findStepKeymap(),
+      findStepFacet.of({
+        next: () => this.stepFind(slot.id, 1) != null,
+        prev: () => this.stepFind(slot.id, -1) != null,
+      }),
       slot.compartment.of(this.chrome(slot)),
     ];
     this.sync.addView(slot.id, extensions, slot.compartment, selection);
@@ -603,7 +593,7 @@ export class Session {
         ev.dom.addEventListener("focusin", () => {
           if (session.focused === id) return;
           session.focused = id;
-          session.emit({ type: "focus" });
+          session.emit({ type: "focus", viewId: id });
         });
         session.scheduleMeasure();
       },
@@ -650,7 +640,7 @@ export class Session {
         const slot = session.requireSlot(id);
         slot.presentation = p;
         const ev = session.sync.editorView(id);
-        const pos = ev ? readingLinePos(ev) : session.tracked.get(slot.scrollAt)?.from;
+        const pos = ev ? readingLinePos(ev, viewRange(ev.state)) : session.tracked.get(slot.scrollAt)?.from;
         if (ev) session.captureScroll(slot, ev);
         session.refreshChrome(slot);
         const again = session.sync.editorView(id);
@@ -708,36 +698,22 @@ export class Session {
         });
         slot.findHits = hits;
         slot.findQuery = query;
-        const active = hits.length > 0 ? 0 : -1;
-        if (opts.mode === "document" && active >= 0) {
-          session.revealFindHit(id, hits[active]!);
-        }
-        const activeHit = active >= 0 ? hits[active]! : null;
-        const effects = [
-          setFindQuery.of(query),
-          setFindHighlights.of({ hits, active, presentation: slot.presentation }),
-        ];
-        if (activeHit?.class === "prose") {
-          const sel = EditorSelection.range(activeHit.from, activeHit.to);
-          session.sync.dispatchSpecs(id, [
-            {
-              selection: sel,
-              effects: [...effects, EditorView.scrollIntoView(sel, { y: "nearest" })],
-              annotations: [scrollCause.of("find"), Transaction.addToHistory.of(false)],
-            },
-          ]);
-        } else {
-          session.sync.dispatchSpecs(id, [
-            {
-              effects,
-              annotations: [scrollCause.of("find"), Transaction.addToHistory.of(false)],
-            },
-          ]);
-          if (activeHit?.class === "metadata") {
-            session.scrollToMetadataHit(id, activeHit);
-          }
-        }
+        slot.findMode = opts.mode;
+        slot.findActive = hits.length > 0 ? 0 : -1;
+        session.activateFindHit(id);
         return hits;
+      },
+      findNext() {
+        return session.stepFind(id, 1);
+      },
+      findPrev() {
+        return session.stepFind(id, -1);
+      },
+      get findIndex() {
+        return session.views.get(id)?.findActive ?? -1;
+      },
+      get findCount() {
+        return session.views.get(id)?.findHits.length ?? 0;
       },
       replace(hitId: string, text: string) {
         const slot = session.requireSlot(id);
@@ -758,6 +734,7 @@ export class Session {
           });
         }
         slot.findHits = slot.findHits.filter((h) => h.id !== hitId);
+        if (slot.findActive >= slot.findHits.length) slot.findActive = slot.findHits.length - 1;
       },
       replaceAll(text: string, opts?: { classes?: string[] }) {
         const slot = session.requireSlot(id);
@@ -791,12 +768,13 @@ export class Session {
           });
         }
         slot.findHits = [];
+        slot.findActive = -1;
         return { prose: plan.prose, metadata: plan.metadata, rejected: plan.rejected };
       },
       focus() {
         session.focused = id;
         session.sync.editorView(id)?.focus();
-        session.emit({ type: "focus" });
+        session.emit({ type: "focus", viewId: id });
       },
       editorView() {
         return session.sync.editorView(id);
@@ -819,6 +797,47 @@ export class Session {
     const inside = node.subtreeRange.from >= range.from && node.subtreeRange.to <= range.to;
     if (!inside) handle.setScope(nodeId);
     handle.scrollToNode(nodeId, "undo");
+  }
+
+  /** F10: step active hit; wrap; reveal per the list's mode. */
+  private stepFind(viewId: string, delta: 1 | -1): SearchHit | null {
+    const slot = this.requireSlot(viewId);
+    const n = slot.findHits.length;
+    if (n === 0) return null;
+    slot.findActive = slot.findActive < 0 ? 0 : (slot.findActive + delta + n) % n;
+    this.activateFindHit(viewId);
+    return slot.findHits[slot.findActive] ?? null;
+  }
+
+  private activateFindHit(viewId: string): void {
+    const slot = this.requireSlot(viewId);
+    const active = slot.findActive;
+    const hits = slot.findHits;
+    const activeHit = active >= 0 ? hits[active] ?? null : null;
+    if (slot.findMode === "document" && activeHit) this.revealFindHit(viewId, activeHit);
+    const effects = [
+      setFindQuery.of(slot.findQuery),
+      setFindHighlights.of({ hits, active, presentation: slot.presentation }),
+    ];
+    if (activeHit?.class === "prose") {
+      const sel = EditorSelection.range(activeHit.from, activeHit.to);
+      this.sync.dispatchSpecs(viewId, [
+        {
+          selection: sel,
+          effects: [...effects, EditorView.scrollIntoView(sel, { y: "nearest" })],
+          annotations: [scrollCause.of("find"), Transaction.addToHistory.of(false)],
+        },
+      ]);
+    } else {
+      this.sync.dispatchSpecs(viewId, [
+        {
+          effects,
+          annotations: [scrollCause.of("find"), Transaction.addToHistory.of(false)],
+        },
+      ]);
+      if (activeHit?.class === "metadata") this.scrollToMetadataHit(viewId, activeHit);
+    }
+    this.emit({ type: "views" });
   }
 
   /** Document-mode find: open the hit's node in this view when outside ScopeRange (F2/U5/T49). */
@@ -867,7 +886,7 @@ export class Session {
   private captureScroll(slot: ViewSlot, ev: EditorView): void {
     const rec = this.tracked.get(slot.scrollAt);
     if (!rec) return;
-    const pos = readingLinePos(ev);
+    const pos = readingLinePos(ev, viewRange(ev.state));
     rec.from = pos;
     rec.to = pos;
   }
@@ -880,7 +899,7 @@ export class Session {
       for (const slot of this.views.values()) {
         const ev = this.sync.editorView(slot.id);
         if (!ev) continue;
-        const next = visibleNodeFromView(ev, this.treeState);
+        const next = visibleNodeFromView(ev, this.treeState, viewRange(ev.state));
         if (next !== slot.visibleNode) changed = true;
         slot.visibleNode = next;
         this.captureScroll(slot, ev);
@@ -899,5 +918,3 @@ export class Session {
 export function createSession(opts: CreateSessionOptions): Session {
   return new Session(opts);
 }
-
-export { nodeAtPosition };

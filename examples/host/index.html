@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Synoptic editor — example host</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Synoptic editor</h1>
+      <p>Example host. State lives in the session; this page only paints <code>subscribe</code>.</p>
+      <div id="toolbar"></div>
+    </header>
+    <div id="layout">
+      <aside id="nav"></aside>
+      <section id="panes">
+        <div class="pane-wrap">
+          <h2>source</h2>
+          <div id="source" class="pane"></div>
+        </div>
+        <div class="pane-wrap">
+          <h2>wysiwyg</h2>
+          <div id="wysiwyg" class="pane"></div>
+        </div>
+      </section>
+    </div>
+    <p id="status"></p>
+    <script src="./dist/bundle.js"></script>
+  </body>
+</html>

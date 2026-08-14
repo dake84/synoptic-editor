@@ -2,6 +2,8 @@ node_modules/
 dist/
 spikes/phase-0/dist/
 harness/dist/
+examples/host/dist/
+examples/host/theme.css
 coverage/
 *.log
 .DS_Store

@@ -35,7 +35,12 @@ src/
     guards/                L1–L6, FM1–FM2
     widgets/               Formular, Chips, Pills
     scroll.ts              genau ein Owner, benannte Ursache (I4)
-  index.ts                 öffentliche API (§ 12) — einziger Exportpunkt
+  api.ts                   öffentliche Typen (§ 12)
+  theme.css                Widget-Klassen für Hosts
+  index.ts                 öffentliche API (§ 12) — einziger Exportpunkt für Hosts
+
+examples/
+  host/                    Beispiel-Host; importiert nur `src/index.ts`
 
 harness/                   Testoberfläche, wird nicht veröffentlicht
   commands.ts              Kommandoschnittstelle (§ 13.4)
@@ -63,7 +68,7 @@ scripts/
 ## 2 · Regel-Ids an Tests binden
 
 Der wichtigste Mechanismus. `SPEC.md` vergibt Ids: `I1–I10`, `TP1–TP8`, `V1–V10`,
-`S1–S3`, `R1–R7`, `U1–U16`, `D1–D5`, `L1–L6`, `FM1–FM7`, `W1–W5`, `P1–P5`, `F1–F9`,
+`S1–S3`, `R1–R7`, `U1–U16`, `D1–D5`, `L1–L6`, `FM1–FM7`, `W1–W5`, `P1–P5`, `F1–F10`,
 `RP1–RP7`, `B1–B4`, `G1a/G1b`, `G2–G3`, `EX1–EX5`.
 
 Jeder Test annotiert, welche Regeln er abdeckt:
@@ -96,7 +101,7 @@ Jede erzwingt eine Invariante, die sonst erodiert.
 | `check-core-purity` | **I8** | `src/core/**` importiert nichts aus `@codemirror/view`, keinem UI-Framework, keinem DOM-Global. Verstoß = Fehler. |
 | `check-no-waiting` | **I5** | Kein `setTimeout`, `waitForTimeout`, `sleep`, Poll-Schleife mit Intervall/Backoff in `tests/**` — das rät eine Dauer. **Erlaubt** ist ein einzelnes, unbedingtes Warten auf ein wohldefiniertes Ereignis (ein `requestAnimationFrame`, ein Microtask-Flush) — das rät nichts. Für `visibleNode`: Positions→Node-Auflösung als reine Funktion mit injizierter Geometrie unit-testen; nur die Integration gegen echtes Layout braucht den einen Frame-Await. |
 | `check-rules-covered` | Spec-Deckung | § 2 |
-| `check-export-surface` | **F5** (Spec § 5) | `src/index.ts` exportiert genau die Namen aus SPEC § 12 — nicht mehr. Neue Exporte erfordern eine Spec-Änderung. |
+| `check-export-surface` | **SPEC § 12** | `src/index.ts` exportiert genau die Namen aus SPEC § 12 — nicht mehr. Neue Exporte erfordern eine Spec-Änderung. Beispiel-Hosts dürfen nur das Paket-Root importieren. |
 
 `check-export-surface` ist für ein OSS-Paket der unterschätzte: versehentlich exportierte
 Interna werden zu Vertrag, sobald jemand sie benutzt.

@@ -12,6 +12,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["node_modules/**", "dist/**", "coverage/**", "test-results/**", "playwright-report/**"],
+    ignores: ["node_modules/**", "dist/**", "coverage/**", "test-results/**", "playwright-report/**", "examples/host/dist/**", "harness/dist/**", "spikes/phase-0/dist/**"],
   },
 );

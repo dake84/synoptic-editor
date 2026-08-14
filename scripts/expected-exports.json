@@ -2,7 +2,30 @@
   "_comment": "Hand-maintained mirror of SPEC.md §12 (Öffentliche API). Update whenever §12 or src/index.ts changes.",
   "exports": [
     "createSession",
+    "createTimeline",
+    "CreateSessionOptions",
+    "CreateViewOptions",
+    "ForeignTimelineCommand",
+    "IncludeMode",
+    "Policy",
+    "Presentation",
+    "Range",
+    "ReadNode",
+    "ReplaceAllResult",
+    "ResolvedTrackedPosition",
+    "SearchHit",
+    "SearchHitClass",
     "Session",
-    "ViewHandle"
+    "SessionEvent",
+    "StructureAction",
+    "StructureLevel",
+    "StructureSchema",
+    "Timeline",
+    "TrackedPositionId",
+    "Tree",
+    "TreeNode",
+    "ViewHandle",
+    "ViewRestoreState",
+    "ViewScope"
   ]
 }

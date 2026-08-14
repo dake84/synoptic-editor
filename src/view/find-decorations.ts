@@ -3,8 +3,8 @@
  * metadata in wysiwyg is highlighted via pills (findQueryField).
  */
 
-import { RangeSetBuilder, StateEffect, StateField, type EditorState } from "@codemirror/state";
-import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
+import { Facet, RangeSetBuilder, StateEffect, StateField, type EditorState } from "@codemirror/state";
+import { Decoration, EditorView, keymap, type DecorationSet } from "@codemirror/view";
 import type { SearchHit } from "../core/search.js";
 import type { Presentation } from "./presentation.js";
 
@@ -17,6 +17,31 @@ export interface FindHighlightSpec {
 }
 
 export const setFindHighlights = StateEffect.define<FindHighlightSpec>();
+
+export interface FindStep {
+  next(): boolean;
+  prev(): boolean;
+}
+
+export const findStepFacet = Facet.define<FindStep, FindStep | null>({
+  combine: (v) => v[0] ?? null,
+});
+
+/** F3 / Shift+F3 — next / previous active hit (SPEC.md F10). */
+export function findStepKeymap() {
+  return keymap.of([
+    {
+      key: "F3",
+      preventDefault: true,
+      run(view) {
+        return view.state.facet(findStepFacet)?.next() ?? false;
+      },
+      shift(view) {
+        return view.state.facet(findStepFacet)?.prev() ?? false;
+      },
+    },
+  ]);
+}
 
 export const findQueryField = StateField.define<string>({
   create: () => "",

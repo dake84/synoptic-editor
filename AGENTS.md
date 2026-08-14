@@ -62,9 +62,11 @@ Zeigergesten.
 
 `SPEC.md` § 16. Die Architektur ist entschieden und in `spikes/phase-0/` belegt (§ 11.3) —
 `SessionEditorState` ohne View, ein `EditorState` je View, Dokument-Weiterleitung, keine
-Selektions-Weiterleitung, sticky `ScopeRange` (EX1–EX5). Als Nächstes Phase 3 (Formular, Chips, Pills, Suche). `src/core/**`
+Selektions-Weiterleitung, sticky `ScopeRange` (EX1–EX5). Phasen 1–3 sind im `src/`-Baum.
+Phase 4: Hosts importieren nur das Paket-Root (`src/index.ts`, SPEC § 12). `src/core/**`
 bleibt stehen (kennt CM6 nicht; `yaml` für Frontmatter-Ranges ist erlaubt). Der frühere Sync-/View-Layer gegen die verworfene
-Variantenprämisse ist entfernt (`git log`).
+Variantenprämisse ist entfernt (`git log`). Offene Veröffentlichungspunkte: Name (O1),
+Sprache der Spec (O3).
 
 ## Fertig heißt
 

@@ -4,7 +4,7 @@ Markdown-Editor-Komponente auf CodeMirror 6. Ein Dokument, mehrere gleichzeitig 
 Views mit unterschiedlicher Darstellung und unterschiedlichem Ausschnitt.
 
 Status: Entwurf. Diese Datei wird `SPEC.md` im eigenen Repository und ist dort die einzige
-Anforderungsquelle.
+Anforderungsquelle. Die öffentliche Host-API ist § 12 — nicht mehr, nicht weniger.
 
 ---
 
@@ -541,6 +541,7 @@ ein Modus mit einem Parameter:
 | **F1** | Lokale Suche findet nichts außerhalb der eigenen Range und ändert niemals Scope oder `activeNode`. |
 | **F2** | Globale Suche findet über die eigene Range hinaus; der Übergang zu einem Treffer außerhalb folgt U5. |
 | **F3** | Trefferliste und aktiver Treffer gehören zur View. Zwei Views können gleichzeitig in unterschiedlichen Modi suchen. |
+| **F10** | `findNext` / `findPrev` (Tasten **F3** / **Shift+F3**) wechseln nur den **aktiven Treffer** der bestehenden Liste — keine neue Projektion. Am Ende der Liste wird gewrappt. Aufdecken folgt dem Modus der Liste (F1/F2). |
 
 ### 10.2 Projektion
 
@@ -694,29 +695,47 @@ Guards, Presentation und der Je-View-Konfiguration ändert sich dabei nichts.
 
 ## 12 · Öffentliche API
 
-Entwurf. Alles nicht Aufgeführte ist intern.
+Vertrag. Einziger Einstieg für Hosts ist das Paket-Root (`createSession`, `createTimeline`
+und die unten genannten Typen). Alles nicht Aufgeführte ist intern — einschließlich
+Test-/Harness-Hilfen (`excerpt`, `dispatch`, `relations`, `editorView`, …). Neue Exporte
+erfordern eine Änderung dieser Sektion; `scripts/check-export-surface.mjs` erzwingt die
+Deckung.
+
+### Fabriken
+
+| Signatur | Art |
+| -------- | --- |
+| `createSession({ doc, schema, policy?, timeline?, strings? })` | Session |
+| `createTimeline()` | Timeline — Host erzeugt sie, wenn er Einträge schieben oder eine Zeitachse teilen will (U12/U13). Ohne Argument legt `createSession` eine eigene an. |
+
+`strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
+Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
+steht.
 
 ### Session
 
 | Signatur | Art |
 | -------- | --- |
-| `createSession({ doc, schema, policy?, timeline?, strings? })` | Factory |
 | `session.document` · `session.tree` | lesend |
 | `session.readNodes(ids)` | lesend — Inhalt in host-gewählter Reihenfolge (§ 17, O10) |
 | `session.createTrackedPosition(range)` · `.release(id)` · `.resolve(id)` | TrackedPosition (§ 3.4) |
 | `session.activeNode` · `session.visibleNode` | lesend, abgeleitet |
+| `session.focusedViewId` | lesend — welche View Fokus hat (O6; globale Suche in § 13.2) |
+| `session.view(id)` | lesend — Handle oder `undefined`; `scopeLost` trägt nur die Id |
+| `session.timelineDepth` | lesend — Tiefe der einen Timeline (I3, § 13.2 Undo-Bedienung) |
 | `session.isDirty(nodeId)` · `session.isSubtreeDirty(nodeId)` | lesend, abgeleitet |
-| `session.undo()` · `session.redo()` | Kommando — der eine Eintrittspunkt |
-| `session.apply(action)` | Kommando — Struktur-/Nicht-Text-Aktion (§ 7.3) |
+| `session.undo()` · `session.redo()` | Kommando — der eine Eintrittspunkt (I3). Nicht `timeline.undo` |
+| `session.apply(action)` | Kommando — Strukturaktion (§ 7.3, `StructureAction`) |
 | `session.markPersisted(nodeId?)` | Kommando |
 | `session.replaceDocument(doc)` | Kommando — U7 |
 | `session.subscribe(fn)` | Ereignis — ein Kanal für alle Zustandsänderungen, einschließlich `scopeLost` (EX4) |
-| `session.createView(opts)` | Factory |
+| `session.createView(opts)` | Factory → `ViewHandle` |
 
 ### View
 
 | Signatur | Art |
 | -------- | --- |
+| `view.id` | lesend |
 | `view.mount(el)` · `view.destroy()` | Lebenszyklus |
 | `view.getState()` | lesend — Wiederherstellungszustand mit TrackedPositions (§ 3.5) |
 | `view.setScope(nodeId, { include: 'own' \| 'subtree' })` | Kommando — Umfang (§ 3.1) |
@@ -725,8 +744,35 @@ Entwurf. Alles nicht Aufgeführte ist intern.
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.visibleNode` | lesend |
 | `view.find(query, { mode: 'view' \| 'document' })` | Kommando (§ 10.1) → `SearchHit[]` |
+| `view.findNext()` · `view.findPrev()` | Kommando — aktiver Treffer (F3/F10) → `SearchHit \| null` |
 | `view.replace(hitId, text)` · `view.replaceAll(text, { classes })` | Kommando (§ 10.3) |
 | `view.focus()` | Kommando |
+
+### Timeline
+
+| Signatur | Art |
+| -------- | --- |
+| `timeline.depth` | lesend — gleich `session.timelineDepth` derselben Session |
+| `timeline.pushForeign(command)` | Kommando — host-eigene Entität (U9–U11). `command` = `{ apply, revert, reveal?, label? }` |
+
+Text-Undo läuft ausschließlich über `session.undo` / `session.redo` (I3). Die Timeline-Klasse
+der Implementierung darf intern mehr können; das ist kein Host-Vertrag.
+
+### Ereignisse
+
+`subscribe` liefert einen der folgenden Werte. Ein Kanal, kein gespiegelter Zustand (I7, I10).
+
+```
+{ type: 'document' }
+{ type: 'tree' }
+{ type: 'views' }
+{ type: 'focus', viewId: string }
+{ type: 'visible' }
+{ type: 'tracked', id: TrackedPositionId }
+{ type: 'scopeLost', viewId: string }
+```
+
+### Typen (Auszug)
 
 ```
 SearchHit = {
@@ -735,10 +781,18 @@ SearchHit = {
   to:    number,
   class: 'prose' | 'metadata',
 }
+
+StructureAction =
+  | { type: 'deleteNode', nodeId: string }
+  | { type: 'changeHeadingDepth', nodeId: string, headingDepth: number }
+
+replaceAll → { prose: number, metadata: number, rejected?: number }
 ```
 
-`replaceAll` liefert `{ prose: number, metadata: number, rejected?: number }` — getrennte
-Zählung (RP5) und abgelehnte YAML-Treffer (RP6).
+`replaceAll` zählt getrennt (RP5) und weist YAML-Treffer ab (RP6).
+
+Struktur-, Tree-, Policy- und Restore-Typen gehören zum Vertrag, weil Hosts sie
+konstruieren oder aus `subscribe` lesen müssen. CodeMirror-`EditorView` gehört nicht dazu.
 
 Entwurfsentscheidungen: `cause` als Pflichtparameter macht I4 im Typsystem prüfbar. Ein
 `subscribe`-Kanal statt spezialisierter Events verhindert gespiegelten Zustand beim
@@ -827,6 +881,7 @@ darf auf Zeit warten (I5).
 | # | Fall | Prüft |
 | - | ---- | ----- |
 | T8 | Scrollen über mehrere Nodes meldet die Folge korrekt. | Grundfunktion |
+| T118 | `visibleNode` liegt **innerhalb** von `renderRange(view)` — eine Leselinie auf dem versteckten Prefix/Suffix (Hide außerhalb des Scope) meldet keine fremde Node. | Hide ist Darstellung, nicht Isolation; die Geometrie darf trotzdem nicht aus dem Ausschnitt fallen |
 | T9 | Cursorsprung ohne Scroll ändert `visibleNode` nicht. | visibleNode kommt aus Scroll, nicht aus Selektion |
 | T10 | Überschriften unterhalb der Schema-Ränge verschieben `visibleNode` nicht. | Nur Schema-Ränge sind Nodes |
 | T11 | Bei mehreren Views ist eindeutig und stabil, welche `session.visibleNode` speist. | Fokusabhängige Ableitung |
@@ -920,6 +975,7 @@ darf auf Zeit warten (I5).
 | T49 | Modus `document` findet über die eigene Range hinaus; Aufdecken nach U5, Scope darf sich ändern. |
 | T50 | Modus `view` findet nicht außerhalb der eigenen Range **und ändert weder Scope noch `activeNode`** (F1). |
 | T70 | Zwei Views suchen gleichzeitig in unterschiedlichen Modi ohne gegenseitige Beeinflussung (F3). |
+| T117 | `findNext` / `findPrev` wrappen die Trefferliste der View, lassen die andere View unberührt und decken im Modus `document` nach U5 auf (F3/F10). |
 | T71 | Suche nach einem als Pill gerenderten Frontmatter-Wert: Treffer in `wysiwyg`, Pill markiert, **Teilstring innerhalb der Pill hervorgehoben** (P4/F6). |
 | T72 | Derselbe Wert, **nicht** als Pill gerendert: kein Treffer in `wysiwyg`, Treffer in `source` (P5). |
 | T73 | Caret lässt sich nicht in eine Pill setzen; eine Selektion erfasst sie nicht zeichenweise (P3). |
@@ -1052,7 +1108,7 @@ Torstelle vor dem ersten Anwendungscode.
 | ----- | ------ | -------- |
 | **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
 | **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
-| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig | T38–T56, T64–T82 grün |
+| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig | T38–T56, T64–T82, T117 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
 ### 16.1 Verifikation des Sync-Kerns

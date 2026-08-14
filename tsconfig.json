@@ -13,5 +13,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src", "harness", "tests", "bench", "scripts", "spikes", "*.config.ts"]
+  "include": ["src", "harness", "tests", "bench", "scripts", "spikes", "examples", "*.config.ts"]
 }

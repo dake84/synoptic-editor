@@ -370,7 +370,7 @@ see \\# here
     expect(s.document).toContain("see  here");
   });
 
-  /** @covers T8, T9, T10 */
+  /** @covers T8, T9, T10, T118 */
   it("visibleNode follows injected scroll geometry and ignores non-schema headings", () => {
     const tree = projectTree(DOC, FIXTURE_SCHEMA);
     const n0 = tree.nodes.get("n0")!;
@@ -381,6 +381,9 @@ see \\# here
     expect(visibleNodeFromGeometry(tree, 80, () => ({ from: n2.ownRange.from + 1 }))).toBe("n2");
     const hash5 = DOC.indexOf("Child body");
     expect(visibleNodeFromGeometry(tree, 40, () => ({ from: hash5 }))).toBe("n1");
+    // Hide-outside maps the prefix to pos 0 — clip into the scoped range.
+    expect(visibleNodeFromGeometry(tree, 0, () => ({ from: 0 }), n1.ownRange)).toBe("n1");
+    expect(visibleNodeFromGeometry(tree, 0, () => ({ from: n2.ownRange.to }), n2.ownRange)).toBe("n2");
   });
 
   /** @covers T13, I5 */

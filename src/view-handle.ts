@@ -1,48 +1,16 @@
 /**
- * View handle (SPEC.md § 12).
+ * View handle (SPEC.md § 12). The public type is in api.ts; this adds harness-only fields.
  */
 
 import type { EditorView } from "@codemirror/view";
-import type { SearchHit, SearchHitClass } from "./core/search.js";
-import type { TrackedPositionId } from "./core/tracked-position.js";
-import type { IncludeMode, Presentation } from "./view/presentation.js";
+import type { ViewHandle as PublicViewHandle, ViewRestoreState, ViewScope, ReplaceAllResult } from "./api.js";
 
-export interface ViewScope {
-  nodeId: string;
-  include: IncludeMode;
-}
+export type { ViewRestoreState, ViewScope, ReplaceAllResult };
 
-export interface ViewRestoreState {
-  scope: ViewScope;
-  presentation: Presentation;
-  grain: number;
-  scrollAt: TrackedPositionId;
-  caretAt: TrackedPositionId;
-  findState: unknown;
-}
-
-export interface ReplaceAllResult {
-  prose: number;
-  metadata: number;
-  rejected?: number;
-}
-
-export interface ViewHandle {
-  readonly id: string;
-  mount(el: HTMLElement): void;
-  destroy(): void;
-  getState(): ViewRestoreState;
-  setScope(nodeId: string, opts?: { include?: IncludeMode }): void;
-  setPresentation(p: Presentation): void;
-  setGrain(rank: number): void;
-  navigateTo(nodeId: string): void;
-  scrollToNode(nodeId: string, cause: string): void;
-  readonly visibleNode: string | null;
-  find(query: string, opts: { mode: "view" | "document" }): SearchHit[];
-  replace(hitId: string, text: string): void;
-  replaceAll(text: string, opts?: { classes?: SearchHitClass[] }): ReplaceAllResult;
-  focus(): void;
+export interface ViewHandle extends PublicViewHandle {
+  /** 0-based active hit, or -1 (F3/F10). Harness/tests; not in § 12. */
+  readonly findIndex: number;
+  readonly findCount: number;
+  /** CM6 view — not in § 12. */
   editorView(): EditorView | null;
 }
-
-export type { SearchHit, SearchHitClass };
