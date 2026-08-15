@@ -474,7 +474,7 @@ im Label (`<` im Textknoten). Roh-HTML, das kein Chip ist, bleibt Quelltext (§ 
 
 | # | Regel |
 | - | ----- |
-| **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10) und hervorhebbar. Mit Textknoten: das geschriebene Label *ist* die Anzeige, **als Teilstring selektierbar**. Ohne Textknoten (W7): synthetische Beschriftung; findbar, nicht teilstring-selektierbar (wie Pills, F7). Die Komponente resolvt keine Katalogdaten — Hover liegt beim Host. |
+| **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10) und hervorhebbar. Mit Textknoten: das geschriebene Label *ist* die Anzeige, **als Teilstring selektierbar**, CSS-Klasse `syn-chip` (kein Default-Look — Hosts stylen). Ohne Textknoten (W7): synthetische Beschriftung; findbar, nicht teilstring-selektierbar (wie Pills, F7). Die Komponente resolvt keine Katalogdaten — Hover liegt beim Host. |
 | **W2** | Nicht sichtbare Anteile (übrige Attribute, Marker, Tags) nehmen an der Suche nicht teil. Ausnahme W7: der id-Wert bzw. der type-Token *ist* das Label, nicht verstecktes Chrome. |
 | **W3** | Löschen erfasst die gesamte Widget-Einheit oder nichts (L1). |
 | **W4** | Widgets überstehen Presentation-, Scope- und Grain-Wechsel funktionsfähig. |

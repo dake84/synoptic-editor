@@ -10,6 +10,8 @@ import type { ScopeRange } from "../scope.js";
 
 const hideAttrs = Decoration.replace({});
 const atomMark = Decoration.mark({});
+/** Host-stylable hook on the visible label (SPEC § 8.3). No default look. */
+const chipLabelMark = Decoration.mark({ class: "syn-chip" });
 
 export function chipDecorationField(
   rangeField: StateField<ScopeRange>,
@@ -72,6 +74,7 @@ function buildChipHide(doc: string, r: ScopeRange, style: InlineRefStyle): Decor
   for (const chip of visibleChips(doc, r, style)) {
     // Hide chrome — keep label text (O9/F7). Split on lines so replace stays inline.
     if (chip.from < chip.labelFrom) hideRangeSlices(doc, chip.from, chip.labelFrom, builder);
+    if (chip.labelFrom < chip.labelTo) builder.add(chip.labelFrom, chip.labelTo, chipLabelMark);
     if (chip.labelTo < chip.to) hideRangeSlices(doc, chip.labelTo, chip.to, builder);
   }
   return builder.finish();
