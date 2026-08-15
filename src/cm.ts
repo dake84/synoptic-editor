@@ -3,13 +3,13 @@
  * Desktop plugins import from `synoptic-editor/cm` — never `@codemirror/*`.
  */
 
-export type {
-  Completion,
+export type { Completion, CompletionResult, CompletionSource } from "@codemirror/autocomplete";
+export {
   CompletionContext,
-  CompletionResult,
-  CompletionSource,
+  autocompletion,
+  completeFromList,
+  snippetCompletion,
 } from "@codemirror/autocomplete";
-export { autocompletion, completeFromList, snippetCompletion } from "@codemirror/autocomplete";
 
 export type { ChangeSpec, Extension, SelectionRange, TransactionSpec } from "@codemirror/state";
 export {
