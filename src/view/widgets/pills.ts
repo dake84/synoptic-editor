@@ -1,5 +1,5 @@
 /**
- * Metadata pills under headings (SPEC.md § 8.4, P1–P5).
+ * Metadata pills under headings (SPEC.md § 8.4, P1–P6).
  */
 
 import { RangeSetBuilder, StateField } from "@codemirror/state";
@@ -10,7 +10,14 @@ import type { StructureSchema } from "../../core/types.js";
 import { findQueryOf } from "../find-decorations.js";
 import type { ScopeRange } from "../scope.js";
 
-class PillWidget extends WidgetType {
+/**
+ * Block-widget end height (P6). Must match `.syn-pill` box (no vertical margin —
+ * CM6 block widgets must not use vertical margins).
+ * padding 3+3 + line-height 18 = 24.
+ */
+export const PILL_BLOCK_HEIGHT = 24;
+
+export class PillWidget extends WidgetType {
   constructor(
     readonly key: string,
     readonly value: string,
@@ -23,11 +30,17 @@ class PillWidget extends WidgetType {
     return this.key === other.key && this.value === other.value && this.highlight === other.highlight;
   }
 
+  get estimatedHeight(): number {
+    return PILL_BLOCK_HEIGHT;
+  }
+
   toDOM(): HTMLElement {
     const el = document.createElement("span");
     el.className = "syn-pill";
     el.setAttribute("contenteditable", "false");
     el.dataset.key = this.key;
+    el.style.height = `${PILL_BLOCK_HEIGHT}px`;
+    el.style.boxSizing = "border-box";
     if (this.highlight && this.value.includes(this.highlight)) {
       const i = this.value.indexOf(this.highlight);
       if (i > 0) el.append(document.createTextNode(this.value.slice(0, i)));

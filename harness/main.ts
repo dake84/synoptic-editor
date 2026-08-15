@@ -25,7 +25,10 @@ tag: alpha
 
 Root intro with a chip [Alpha]{id=a type=ref} and another [Beta]{id=b type=ref}.
 
+Prose with *emphasis*, **strong**, ~~strike~~ and \`code\` spans.
+
 Literal hash in prose looks like this when typed in wysiwyg: \\#tag.
+Literal star: \\*not-em\\*.
 
 ---
 id: n1

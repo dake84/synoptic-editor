@@ -1,19 +1,22 @@
-/* Default chrome for widgets and find hits (SPEC.md § 8, § 10). Hosts may replace this. */
+/* Default chrome for widgets and find hits (SPEC.md § 8, § 10). Hosts may replace this.
+ * Block widgets (pills, FM form): no vertical margin — CM6 height map + FM8/P6. */
 
 .syn-fm-form {
   display: grid;
   gap: 4px;
   padding: 6px 8px;
-  margin: 4px 0;
   background: #f0f4f8;
   border: 1px solid #bcd;
   border-radius: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .syn-fm-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .syn-fm-row input {
@@ -21,12 +24,13 @@
 }
 
 .syn-pill {
-  display: inline-block;
-  margin: 2px 4px 2px 0;
-  padding: 1px 8px;
+  display: block;
+  box-sizing: border-box;
+  padding: 3px 8px;
   background: #eef;
   border-radius: 999px;
   font-size: 12px;
+  line-height: 18px;
 }
 
 .syn-pill-hit,
@@ -45,4 +49,22 @@
 
 .cm-scroller {
   overflow: auto;
+}
+
+/* Inline chrome (SPEC.md § 8.6) — classes from the pair scanner, not HTML tags. */
+.syn-em {
+  font-style: italic;
+}
+
+.syn-strong {
+  font-weight: 700;
+}
+
+.syn-strike {
+  text-decoration: line-through;
+}
+
+.syn-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
 }

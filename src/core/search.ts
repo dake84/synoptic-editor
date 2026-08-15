@@ -5,6 +5,7 @@
 import { findChips, type InlineRefStyle } from "./chips.js";
 import { fieldByKey, parseFrontmatterBlock } from "./frontmatter.js";
 import { findHtmlComments, overlapsAny } from "./html-comments.js";
+import { findInlineMarks, inlineDelimiterRanges } from "./inline-markers.js";
 import { projectTree } from "./tree.js";
 import type { Range, StructureSchema, Tree } from "./types.js";
 
@@ -87,7 +88,11 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     const proseStart = Math.max(titleFrom, node.frontmatter ? node.frontmatter.to : titleFrom);
     const comments = findHtmlComments(doc, ownFrom, ownTo);
     if (titleFrom < titleTo) {
-      segments.push(...proseMinusHoles(titleFrom, titleTo, comments, "prose"));
+      const titleHoles: Range[] = [
+        ...comments,
+        ...inlineDelimiterRanges(findInlineMarks(doc, titleFrom, titleTo)),
+      ];
+      segments.push(...proseMinusHoles(titleFrom, titleTo, titleHoles, "prose"));
     }
 
     const bodyStart = Math.max(bodyFrom, proseStart, from);
@@ -99,6 +104,10 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     for (const chip of chips) {
       if (chip.from < chip.labelFrom) holes.push({ from: chip.from, to: chip.labelFrom });
       if (chip.labelTo < chip.to) holes.push({ from: chip.labelTo, to: chip.to });
+    }
+    // Inline delimiter chrome is not reader-visible (IM4/F4); interior stays searchable.
+    for (const d of inlineDelimiterRanges(findInlineMarks(doc, bodyStart, ownTo))) {
+      holes.push(d);
     }
     segments.push(...proseMinusHoles(bodyStart, ownTo, holes, "prose"));
   }

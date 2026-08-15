@@ -1,11 +1,18 @@
 /**
- * Per-view presentation and grain chrome (SPEC.md § 3.3, A7, I9).
+ * Per-view presentation and grain chrome (SPEC.md § 3.3, A7, I9, § 8.6).
  * Decorations never rewrite the document. Hide reads ScopeRange (EX2).
+ * Inline chrome: string pair-scan, rebuild on doc/scope only — never on scroll.
  */
 
 import { RangeSetBuilder, StateField } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { findHtmlComments, overlapsAny } from "../core/html-comments.js";
+import {
+  findInlineMarks,
+  inlineDelimiterRanges,
+  type InlineMarkKind,
+  type InlineMarkSpan,
+} from "../core/inline-markers.js";
 import type { StructureSchema } from "../core/types.js";
 import { headingMarkers, maskBackslashRanges, maskPairs, snapOutOfHeadingMarkers } from "./guards/wysiwyg.js";
 import { type ScopeRange } from "./scope.js";
@@ -22,6 +29,13 @@ const hideMask = Decoration.replace({});
 const atomMark = Decoration.mark({});
 const grainMark = (rank: number) =>
   Decoration.line({ class: `syn-grain syn-rank-${rank}`, attributes: { "data-rank": String(rank) } });
+
+const INLINE_MARK: Record<InlineMarkKind, Decoration> = {
+  em: Decoration.mark({ class: "syn-em" }),
+  strong: Decoration.mark({ class: "syn-strong" }),
+  strike: Decoration.mark({ class: "syn-strike" }),
+  code: Decoration.mark({ class: "syn-code" }),
+};
 
 function hideOutside(doc: string, from: number, to: number): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -49,6 +63,11 @@ function lineSlices(doc: string, from: number, to: number): { from: number; to: 
   return out;
 }
 
+function scopedInlineMarks(doc: string, from: number, to: number): InlineMarkSpan[] {
+  const comments = findHtmlComments(doc, from, to);
+  return findInlineMarks(doc, from, to).filter((s) => !overlapsAny({ from: s.openFrom, to: s.closeTo }, comments));
+}
+
 function buildWysiwygDecorations(doc: string, from: number, to: number): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   if (from > 0) builder.add(0, from, hideRange);
@@ -68,6 +87,13 @@ function buildWysiwygDecorations(doc: string, from: number, to: number): Decorat
       if (slice.to > slice.from) inlines.push({ from: slice.from, to: slice.to, deco: hideMarker });
     }
   }
+  for (const span of scopedInlineMarks(doc, from, to)) {
+    if (span.openTo > span.openFrom) inlines.push({ from: span.openFrom, to: span.openTo, deco: hideMarker });
+    if (span.closeTo > span.closeFrom) inlines.push({ from: span.closeFrom, to: span.closeTo, deco: hideMarker });
+    if (span.openTo < span.closeFrom) {
+      inlines.push({ from: span.openTo, to: span.closeFrom, deco: INLINE_MARK[span.kind] });
+    }
+  }
   inlines.sort((a, b) => a.from - b.from || a.to - b.to);
   for (const r of inlines) builder.add(r.from, r.to, r.deco);
   if (to < doc.length) builder.add(to, doc.length, hideRange);
@@ -78,12 +104,14 @@ function buildWysiwygAtoms(doc: string, r: ScopeRange): DecorationSet {
   if (r.lost) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();
   const comments = findHtmlComments(doc, r.from, r.to);
+  const inlineAtoms = inlineDelimiterRanges(scopedInlineMarks(doc, r.from, r.to));
   const ranges = [
     ...headingMarkers(doc).filter(
       (mk) => mk.from >= r.from && mk.to <= r.to && mk.to > mk.from && !overlapsAny(mk, comments),
     ),
     ...maskPairs(doc, r.from, r.to).filter((p) => !overlapsAny(p, comments)),
     ...comments.filter((c) => c.to > c.from),
+    ...inlineAtoms.filter((p) => p.to > p.from && !overlapsAny(p, comments)),
   ].sort((a, b) => a.from - b.from || a.to - b.to);
   for (const p of ranges) builder.add(p.from, p.to, atomMark);
   return builder.finish();

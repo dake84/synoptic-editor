@@ -31,7 +31,6 @@ describe("frontmatter", () => {
   /** @covers FM3, FM5 */
   it("parses field value ranges and clears a key without leaving a YAML fragment", () => {
     const treeFrom = DOC.indexOf("---");
-    const treeTo = DOC.indexOf("# Root");
     // block ends after second ---
     const close = DOC.indexOf("---", 3);
     const end = DOC.indexOf("\n", close + 3) + 1;

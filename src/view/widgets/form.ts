@@ -1,5 +1,5 @@
 /**
- * Frontmatter form / hide widgets (SPEC.md § 8.2, FM1–FM6).
+ * Frontmatter form / hide widgets (SPEC.md § 8.2, FM1–FM8).
  */
 
 import { Facet, RangeSetBuilder, StateField } from "@codemirror/state";
@@ -20,7 +20,21 @@ export const frontmatterWriteFacet = Facet.define<FrontmatterWrite, FrontmatterW
   combine: (v) => v[0] ?? null,
 });
 
-class FrontmatterFormWidget extends WidgetType {
+/** Row height inside `.syn-fm-form` (label + input). */
+const FM_ROW_HEIGHT = 28;
+/** Vertical padding 6+6 + border 1+1 (border-box). */
+const FM_CHROME = 14;
+/** Gap between rows. */
+const FM_GAP = 4;
+
+/** End height for a form with `fieldCount` rows (FM8). */
+export function formBlockHeight(fieldCount: number): number {
+  const n = Math.max(0, fieldCount);
+  if (n === 0) return FM_CHROME;
+  return FM_CHROME + n * FM_ROW_HEIGHT + Math.max(0, n - 1) * FM_GAP;
+}
+
+export class FrontmatterFormWidget extends WidgetType {
   constructor(
     readonly blockFrom: number,
     readonly fields: { key: string; value: string }[],
@@ -36,14 +50,24 @@ class FrontmatterFormWidget extends WidgetType {
     );
   }
 
+  get estimatedHeight(): number {
+    return formBlockHeight(this.fields.length);
+  }
+
   toDOM(view: EditorView): HTMLElement {
     const root = document.createElement("div");
     root.className = "syn-fm-form";
     root.setAttribute("contenteditable", "false");
     root.dataset.blockFrom = String(this.blockFrom);
+    const h = formBlockHeight(this.fields.length);
+    root.style.height = `${h}px`;
+    root.style.boxSizing = "border-box";
+    root.style.overflow = "hidden";
     for (const field of this.fields) {
       const row = document.createElement("label");
       row.className = "syn-fm-row";
+      row.style.height = `${FM_ROW_HEIGHT}px`;
+      row.style.boxSizing = "border-box";
       const name = document.createElement("span");
       name.textContent = field.key;
       const input = document.createElement("input");
@@ -72,6 +96,8 @@ class FrontmatterFormWidget extends WidgetType {
 
   updateDOM(dom: HTMLElement): boolean {
     dom.dataset.blockFrom = String(this.blockFrom);
+    const h = formBlockHeight(this.fields.length);
+    dom.style.height = `${h}px`;
     for (const field of this.fields) {
       const input = dom.querySelector(`input[data-key="${cssEscape(field.key)}"]`) as HTMLInputElement | null;
       if (!input) return false;
@@ -89,7 +115,12 @@ class EmptyBlockWidget extends WidgetType {
   toDOM(): HTMLElement {
     const el = document.createElement("span");
     el.className = "syn-fm-hidden";
+    el.style.height = "0px";
+    el.style.display = "block";
     return el;
+  }
+  get estimatedHeight(): number {
+    return 0;
   }
   eq(): boolean {
     return true;

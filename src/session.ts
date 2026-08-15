@@ -617,7 +617,11 @@ export class Session implements PublicSession {
   }
 
   private makeHandle(id: string): ViewHandle {
-    const session = this;
+    return Session.viewHandle(this, id);
+  }
+
+  /** Handle closes over Session; method `this` would be the handle (no-this-alias). */
+  private static viewHandle(session: Session, id: string): ViewHandle {
     return {
       get id() {
         return id;

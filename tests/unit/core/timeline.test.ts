@@ -73,7 +73,7 @@ describe("Timeline", () => {
   /** @covers U1 */
   it("clear empties history (replaceDocument path)", () => {
     const tl = createTimeline();
-    let doc = "";
+    const doc = "";
     const f = makeChangeSet(doc.length, { from: 0, to: 0, insert: "a" });
     const inv = invertChangeSet(doc, f);
     tl.pushText(f, inv);

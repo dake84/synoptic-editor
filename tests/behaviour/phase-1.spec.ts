@@ -94,7 +94,7 @@ test.describe("phase 1 harness", () => {
   test("T18: typing in a disjoint view does not change the other excerpt", async ({ page }) => {
     const snap = await page.evaluate(() => {
       const h = (window as unknown as { __harness: Harness }).__harness;
-      const [a, b] = h.inspect().views;
+      const [a] = h.inspect().views;
       h.typeIn(a!.id, "HELLO");
       return h.inspect();
     });

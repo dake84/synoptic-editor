@@ -12,6 +12,21 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["node_modules/**", "dist/**", "coverage/**", "test-results/**", "playwright-report/**", "examples/host/dist/**", "harness/dist/**", "spikes/phase-0/dist/**"],
+    files: ["spikes/**/*.{ts,js}", "harness/**/*.{ts,js}", "examples/**/*.{ts,js}"],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
+  {
+    ignores: [
+      "node_modules/**",
+      "dist/**",
+      "coverage/**",
+      "test-results/**",
+      "playwright-report/**",
+      "examples/host/dist/**",
+      "harness/dist/**",
+      "spikes/**/dist/**",
+    ],
   },
 );

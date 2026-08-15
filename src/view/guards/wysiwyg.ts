@@ -1,5 +1,5 @@
 /**
- * Wysiwyg guards L1–L3 (SPEC.md § 8.1, § 11.1.9–10).
+ * Wysiwyg guards L1–L3 (SPEC.md § 8.1, § 8.6, § 11.1.9–10).
  * Installed only on wysiwyg view states — source does not get this extension.
  */
 
@@ -7,6 +7,7 @@ import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Exten
 import { EditorView, keymap } from "@codemirror/view";
 import { findChips, type InlineRefStyle } from "../../core/chips.js";
 import { findHtmlComments } from "../../core/html-comments.js";
+import { findInlineMarks, inlineDelimiterRanges } from "../../core/inline-markers.js";
 import { projectTree } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
@@ -101,9 +102,24 @@ export function headingAtomForDelete(
   );
 }
 
+/** Inline delimiter atom (IM1/L1): whole run or nothing. */
+export function inlineAtomForDelete(
+  doc: string,
+  head: number,
+  dir: "backward" | "forward",
+): { from: number; to: number } | undefined {
+  const dels = inlineDelimiterRanges(findInlineMarks(doc));
+  if (dir === "backward") {
+    return dels.find((mk) => head === mk.to || (head >= mk.from && head < mk.to));
+  }
+  return dels.find((mk) => (head >= mk.from && head < mk.to) || head === mk.from);
+}
+
 export function wysiwygForwardDelete(doc: string, head: number): { from: number; to: number } | undefined {
   const atom = headingAtomForDelete(doc, head, "forward");
   if (atom) return atom;
+  const inline = inlineAtomForDelete(doc, head, "forward");
+  if (inline) return inline;
   if (head < doc.length && doc[head] === "\n") return { from: head, to: head + 1 };
   return undefined;
 }
@@ -132,12 +148,22 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
           run(view) {
             const sel = view.state.selection.main;
             if (!sel.empty) return false;
-            const mk = headingAtomForDelete(view.state.doc.toString(), sel.head, "backward");
-            if (!mk) return false;
-            if (structureLocked) return true; // consume, do not delete marker (L4/T43)
+            const doc = view.state.doc.toString();
+            const mk = headingAtomForDelete(doc, sel.head, "backward");
+            if (mk) {
+              if (structureLocked) return true; // consume, do not delete marker (L4/T43)
+              view.dispatch({
+                changes: { from: mk.from, to: mk.to, insert: "" },
+                selection: EditorSelection.cursor(mk.from),
+                userEvent: "delete.backward",
+              });
+              return true;
+            }
+            const inline = inlineAtomForDelete(doc, sel.head, "backward");
+            if (!inline) return false;
             view.dispatch({
-              changes: { from: mk.from, to: mk.to, insert: "" },
-              selection: EditorSelection.cursor(mk.from),
+              changes: { from: inline.from, to: inline.to, insert: "" },
+              selection: EditorSelection.cursor(inline.from),
               userEvent: "delete.backward",
             });
             return true;
@@ -148,9 +174,10 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
           run(view) {
             const sel = view.state.selection.main;
             if (!sel.empty) return false;
-            const range = wysiwygForwardDelete(view.state.doc.toString(), sel.head);
+            const doc = view.state.doc.toString();
+            const range = wysiwygForwardDelete(doc, sel.head);
             if (!range) return false;
-            const markers = headingMarkers(view.state.doc.toString());
+            const markers = headingMarkers(doc);
             const isMarker = markers.some((mk) => mk.from === range.from && mk.to === range.to);
             if (structureLocked && isMarker) return true;
             view.dispatch({
@@ -197,13 +224,14 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
       const pairs = maskPairs(startDoc, 0, startDoc.length);
       const comments = findHtmlComments(startDoc);
       const chips = findChips(startDoc, 0, startDoc.length, inlineRefStyle).map((c) => ({ from: c.from, to: c.to }));
+      const inlineDels = inlineDelimiterRanges(findInlineMarks(startDoc));
       let rewritten = false;
       const pieces: { from: number; to: number; insert: string }[] = [];
 
       tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
         let from = fromA;
         let to = toA;
-        for (const mk of [...markers, ...pairs, ...comments, ...chips]) {
+        for (const mk of [...markers, ...pairs, ...comments, ...chips, ...inlineDels]) {
           const overlaps = from < mk.to && to > mk.from;
           const covers = from <= mk.from && to >= mk.to;
           if (overlaps && !covers) {

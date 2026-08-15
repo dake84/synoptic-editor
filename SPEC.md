@@ -139,7 +139,7 @@ session.isSubtreeDirty(n) := text(subtreeRange(n)) ≠ baseline(subtreeRange(n))
 | Presentation | Verhalten |
 | ------------ | --------- |
 | `source` | Rohtext inklusive Frontmatter und aller Marker. |
-| `wysiwyg` | Marker versteckt, Frontmatter als Formular-Widget (§ 8.2), Inline-Referenzen als Widgets (§ 8.3), Metadaten-Pills (§ 8.4), HTML-Kommentare ausgeblendet (§ 8.5), Strukturebenen typografisch ausgezeichnet. |
+| `wysiwyg` | Marker versteckt, Frontmatter als Formular-Widget (§ 8.2), Inline-Referenzen als Widgets (§ 8.3), Metadaten-Pills (§ 8.4), HTML-Kommentare ausgeblendet (§ 8.5), Inline-Chrome für Emphasis/Strong/Code/Strike (§ 8.6), Strukturebenen typografisch ausgezeichnet. |
 
 Der Puffer ist in beiden identisch.
 
@@ -398,7 +398,7 @@ Dispatch auslösen.
 
 | # | Regel |
 | - | ----- |
-| **L1** | Strukturmarker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. In `source` ist `##` zwei Zeichen, kein Atom. |
+| **L1** | Marker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. Inline-Delimiter (§ 8.6) sind dieselbe Atom-Familie — je Delimiter-Run (`*` / `**` / `_` / `__` / `~~` / Backtick-Run), nicht die ganze Spanne. In `source` ist `##` zwei Zeichen, kein Atom. |
 | **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. In `wysiwyg` blendet die Darstellung den Maskierungs-Backslash aus (`\#` liest als `#`); der Puffer behält `\#`. Löschen des sichtbaren `#` entfernt den Backslash mit. |
 | **L3** | Mehrzeiliges Einfügen wird in einem Schritt maskiert und in einem Schritt zurückgenommen. |
 | **L4** | Überschriftentext bleibt in `wysiwyg` immer editierbar, unabhängig von `policy.structureEditingInWysiwyg`. |
@@ -424,6 +424,7 @@ nicht als Rohtext erreichbar. `policy.frontmatterInWysiwyg` entscheidet die Dars
 | **FM5** | Ein geleertes Feld erzeugt gültiges Markdown — Schlüssel entfällt oder trägt einen leeren Wert, nie ein YAML-Fragment. |
 | **FM6** | Der Frontmatter des Scope-Node einer View wird auch dann gerendert, wenn er textlich vor der Überschrift liegt. |
 | **FM7** | Das Formular ist **Metadaten-Oberfläche, kein Fließtext**: seine Feldinhalte nehmen an der Textsuche (§ 10) **nicht** teil. |
+| **FM8** | Als Block-Widget deklariert das Formular seine **Endhöhe** über `estimatedHeight` (oder gleichwertig), bevor Scroll/Layout die Zeile braucht. `toDOM` stellt dieselbe Höhe **synchron** her — kein nachträgliches Wachstum per Microtask/`requestMeasure`, das `scrollTop` korrigiert, während der Nutzer nur rollt. |
 
 FM7 ist eine bewusste Entscheidung, keine technische Grenze — Begründung und Alternative in
 § 17, O8.
@@ -489,6 +490,7 @@ Textort auseinanderfallen**: die Zeichen liegen im YAML-Block, angezeigt werden 
 | **P3** | Der Caret kann nicht in eine Pill gesetzt werden, und eine Selektion kann sie nicht zeichenweise erfassen. Grund: CM6-Selektionen sind in Dokumentreihenfolge zusammenhängend — eine Auswahl „Prosa + Pill" müsste rückwärts in den YAML-Block springen oder Überschrift und Frontmatter mitverschlucken. |
 | **P4** | Eine Pill ist **suchbar und hervorhebbar**, einschließlich **Teilstring-Hervorhebung innerhalb der Pill**. Hervorheben ist eine Render-Frage und von P3 nicht betroffen: die Komponente kennt die Trefferstelle im YAML und weiß, welche Pill sie darstellt. |
 | **P5** | Ein Frontmatter-Wert ist **genau dann** durchsuchbar, wenn er als Pill im Lesefluss gerendert wird. Gezählt wird an der Pill, nie zusätzlich im Formular — keine Doppelzählung. |
+| **P6** | Als Block-Widget an der Überschrift deklariert die Pill ihre **Endhöhe** über `estimatedHeight` (oder gleichwertig), bevor Scroll/Layout die Zeile braucht. Dieselbe Höhenregel wie FM8; gilt auch für Host-Chrome über `presentationExtensions` (§ 12). Collapsible Heading-Chrome (Höhe der Überschriftenzeile) ist nicht Body-Fold. |
 
 ### 8.5 HTML-Kommentare
 
@@ -501,6 +503,25 @@ sind Chrome wie ein Marker, kein Widget mit Label.
 
 Übriges Roh-HTML (unbekannte Tags, die kein Chip nach § 8.3 sind) bleibt Quelltext in
 beiden Präsentationen.
+
+### 8.6 Inline-Chrome (Emphasis, Strong, Code, Strike)
+
+Abgeschlossene Inline-Paare werden in `wysiwyg` leser-sichtbar: Delimiter ausgeblendet,
+Innen typografisch markiert. **Decorations schreiben nie das Document** — `*kursiv*` bleibt
+`*kursiv*` im Buffer (I9). Chrome kommt aus einem **Paar-Scan über den String**, Rebuild nur
+bei Document-/Scope-Änderung, nie beim Scrollen. Kein Lezer-Tree für An/Aus; der Tree darf
+Highlight in `source` treiben, nicht Wysiwyg-Chrome.
+
+| # | Regel |
+| - | ----- |
+| **IM1** | Abgeschlossene Paare (`*`/`_` Emphasis, `**`/`__` Strong, `~~` Strike, Code-Span mit Backticks) sind in `wysiwyg`: Delimiter per `Decoration.replace` unsichtbar und atomar (L1); Innen per `Decoration.mark` mit Klasse `syn-em` / `syn-strong` / `syn-strike` / `syn-code`. Styles liegen in `theme.css`, nicht in HTML-Tags. |
+| **IM2** | Ein Scanner, eine Stelle (I6). Löcher: HTML-Kommentare (H1), maskierte Literale (`\*`, L2), Code-Spans (brechen Emphasis/Strong/Strike). Schachtelung nur CommonMark-üblich (`***` = Strong+Em). Kein Tabellen-, Listen-, Setext-, Image- oder Fenced-Code-Chrome in diesem Scanner. |
+| **IM3** | Getipptes `*` / `_` / `#` / … bleibt maskiert (L2). Wysiwyg zeigt das Literal; der Scanner behandelt `\*` nicht als Delimiter. Sonst ist I9 tot. |
+| **IM4** | Suche trifft den Innen-Text, nicht die versteckten Delimiter (F4). `source` sucht den Rohstring inklusive Marker (F5). |
+
+Nicht Gegenstand dieses Schnitts (bleiben `source` / ignore / spätere Phase): Tabellen,
+Images, Fences, HTML-Blöcke, Task lists, Setext, eingerückter Code, Live-Links, Blockquotes,
+Listen-Marker.
 
 ---
 
@@ -584,7 +605,7 @@ ein Modus mit einem Parameter:
 
 | # | Regel |
 | - | ----- |
-| **F4** | Die Trefferprojektion in `wysiwyg` ist **was der Leser sieht** — nicht „sichtbarer Dokumenttext". Sie umfasst damit auch Inhalte, die ein Widget aus einer anderen Dokumentstelle ableitet (Pills, P4/P5), und schließt Marker, Widget-Attribute, HTML-Kommentare (H1) und das Frontmatter-Formular aus. |
+| **F4** | Die Trefferprojektion in `wysiwyg` ist **was der Leser sieht** — nicht „sichtbarer Dokumenttext". Sie umfasst damit auch Inhalte, die ein Widget aus einer anderen Dokumentstelle ableitet (Pills, P4/P5), und schließt Marker (ATX, Inline-Delimiter IM4), Widget-Attribute, HTML-Kommentare (H1) und das Frontmatter-Formular aus. |
 | **F5** | Daraus folgt: derselbe Query liefert in `source` und `wysiwyg` unterschiedliche Trefferzahlen. Vertrag, kein Defekt. |
 | **F6** | Alles Gesehene ist durchsuchbar — **einschließlich Überschriftentiteln, Inline-Chip-Beschriftungen und Metadaten-Pills**. |
 | **F7** | Ein Treffer wird als **Teilstring** hervorgehoben, auch innerhalb einer Überschrift, einer Chip-Beschriftung und einer Pill. **Selektierbar** ist er nur dort, wo seine Trefferstelle echter Fließtext an der Anzeigeposition ist — also nicht in Pills (P3). |
@@ -668,7 +689,8 @@ Anforderung.
    `inclusiveStart: false, inclusiveEnd: false` — sonst schluckt die Nachbar-Range den Caret
    an der Kante. **Kein `block: true`:** ein Block-Widget zeichnet eine leere erste Zeile
    in Kind-Ausschnitten. **Kein `atomicRanges` auf dem Hide** — `skipAtomic` dehnt sonst
-   eine Löschung in den Nachbarn.
+   eine Löschung in den Nachbarn. (Pills und FM-form dürfen `block: true` — P1/FM8;
+   die Hide-Regel gilt nur für den Scope-Rand.)
 8. **Der lebende Ausschnitt ist sticky** (EX1), keine Titel-Neuauflösung und keine
    eingefrorenen Offsets. Hide, Fence, Copy und Select-All lesen dasselbe Feld (EX2).
 9. **L2 lebend:** `transactionFilter`, der `#` zu `\#` umschreibt, kämpft gegen das bereits
@@ -855,9 +877,12 @@ replaceAll → { prose: number, metadata: number, rejected?: number }
 `presentationExtensions` (`source` / `wysiwyg`). Host-Extensions hängen **hinter**
 dem Session-Chrome und werden mit der Präsentation neu konfiguriert. Sie dürfen
 kein `history()` ergänzen, Undo/Redo nicht an den View-State binden und
-`scrollIntoView` nicht als Navigation nutzen (I1, I3, I4). `EditorView` bleibt
-außerhalb von § 12; Injection ist der Extensions-Slot. Overlay-Hosts nutzen
-`coords` / `scrollPort` (G4–G7), nicht `EditorView.findFromDOM`.
+`scrollIntoView` nicht als Navigation nutzen (I1, I3, I4). **Heading-nahe
+Block-Widgets** (Host-Slot, Pills, FM-form) müssen ihre Slot-Höhe **synchron**
+liefern (Zahl oder CSS / `estimatedHeight`) — nicht nach Hydration strecken
+(FM8, P6). `EditorView` bleibt außerhalb von § 12; Injection ist der
+Extensions-Slot. Overlay-Hosts nutzen `coords` / `scrollPort` (G4–G7), nicht
+`EditorView.findFromDOM`.
 
 `moveNode` platziert den Subtree so, dass die Tree-Projektion denselben Parent und
 Index ergibt — eine Rangverletzung oder ein Zug in den eigenen Subtree ist R7.
@@ -1059,6 +1084,10 @@ darf auf Zeit warten (I5).
 | **T122** | Suche nach Text in einem HTML-Kommentar: keine Treffer in `wysiwyg`, Treffer in `source` (H1/F4/F5). |
 | **T123** | Chip-Beschriftung innerhalb eines HTML-Kommentars: in `wysiwyg` kein Treffer (H1). |
 | **T119** | `html-ref`: Suche nach der sichtbaren Beschriftung trifft in `wysiwyg`; Tagname, Attribute und Id treffen nicht (W1/W2/W6). |
+| **T129** | `*kursiv*` / `**fett**` in `wysiwyg`: Delimiter unsichtbar und atomar; Innen trägt `syn-em` / `syn-strong`; Document behält die Marker (IM1/I9). |
+| **T130** | Suche nach `*` oder `**` trifft in `wysiwyg` keine Emphasis-/Strong-Delimiter; Suche nach dem Innen-Text trifft (IM4/F4). In `source` sind die Marker suchbar (F5). |
+| **T131** | `~~x~~` und `` `code` ``: gleiche Hide+Mark-Regel; Code-Span bricht Emphasis darin (IM1/IM2). |
+| **T132** | `\*literal\*` in `wysiwyg`: Backslash hide (L2); die `*` sind keine Delimiter und bleiben sichtbar (IM3). |
 
 ### Ersetzen
 
@@ -1197,7 +1226,7 @@ Torstelle vor dem ersten Anwendungscode.
 | ----- | ------ | -------- |
 | **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
 | **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
-| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig | T38–T56, T64–T82, T117, T119–T124 grün |
+| **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig, Inline-Chrome (§ 8.6) | T38–T56, T64–T82, T117, T119–T124, T129–T132 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
 
 ### 16.1 Verifikation des Sync-Kerns

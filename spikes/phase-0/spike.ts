@@ -109,6 +109,7 @@ export function rangeTo(section: Section, include: Include): number {
 
 /** Resolve by title. No sibling fallback — a missing scope must not adopt a neighbour. */
 export function resolveSection(doc: string, scopeId: string, _scopeIndex?: number): Section | undefined {
+  void _scopeIndex;
   return sectionsOf(doc).find((s) => s.id === scopeId);
 }
 
