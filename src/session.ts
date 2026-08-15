@@ -42,6 +42,7 @@ import {
   type IncludeMode,
   type Presentation,
 } from "./view/presentation.js";
+import { pluginsToExtensionBags, type PluginContribution } from "./view/plugin-registry.js";
 import { coordsRelativeToScrollPort, readingLinePos, scrollCause, scrollToPos, visibleNodeFromView } from "./view/scroll.js";
 import {
   createScopeRangeField,
@@ -422,6 +423,7 @@ export class Session implements PublicSession {
       ancestry = ancestryOf(this.treeState, scope.nodeId);
     }
 
+    const fromPlugins = opts.plugins ? pluginsToExtensionBags(opts.plugins) : null;
     const slot: ViewSlot = {
       id,
       scope,
@@ -441,8 +443,8 @@ export class Session implements PublicSession {
       findActive: -1,
       rangeField: createScopeRangeField({ from: 0, to: 0, lost: false }),
       compartment: new Compartment(),
-      hostExtensions: opts.extensions ?? [],
-      presentationExtensions: opts.presentationExtensions ?? {},
+      hostExtensions: fromPlugins?.host ?? opts.extensions ?? [],
+      presentationExtensions: fromPlugins?.presentation ?? opts.presentationExtensions ?? {},
       handle: this.makeHandle(id),
     };
     this.views.set(id, slot);
@@ -764,6 +766,13 @@ export class Session implements PublicSession {
           annotations: [scrollCause.of(cause), Transaction.addToHistory.of(false)],
         });
         session.scheduleMeasure();
+      },
+      setPlugins(plugins: PluginContribution[]) {
+        const bags = pluginsToExtensionBags(plugins);
+        const slot = session.requireSlot(id);
+        slot.hostExtensions = bags.host;
+        slot.presentationExtensions = bags.presentation;
+        session.refreshChrome(slot);
       },
       setExtensions(extensions, presentationExtensions) {
         const slot = session.requireSlot(id);

@@ -21,6 +21,8 @@ export type {
   ForeignTimelineCommand,
   IncludeMode,
   InlineRefStyle,
+  PluginContribution,
+  PluginSlot,
   Policy,
   Presentation,
   Range,

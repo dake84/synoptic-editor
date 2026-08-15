@@ -817,7 +817,8 @@ steht.
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.reveal(from, to, cause)` | Kommando — Range in den Viewport (Find-Offsets); `cause` Pflicht (I4) |
-| `view.setExtensions(extensions, presentationExtensions?)` | Kommando — Host-Extensions ohne Remount (I3/U8) |
+| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8; ADR 0015) |
+| `view.setExtensions(extensions, presentationExtensions?)` | **deprecated** — Prefer `setPlugins` |
 | `view.coords(from, to)` | lesend — Box relativ zum Scrollport (§ 12.1); `null` wenn ungemountet oder Position ungültig |
 | `view.scrollPort` | lesend — Scroll-Owner-Element (I4) oder `null` wenn ungemountet |
 | `view.visibleNode` | lesend |
@@ -886,16 +887,19 @@ StructureAction =
 replaceAll → { prose: number, metadata: number, rejected?: number }
 ```
 
-`createView` nimmt optional `showNodeHeading` (Default `true`, § 3.3 SNH1–SNH4),
-`extensions` (alle Präsentationen) und `presentationExtensions` (`source` /
-`wysiwyg`). Host-Extensions hängen **hinter** dem Session-Chrome und werden mit
+`createView` nimmt optional `showNodeHeading` (Default `true`, § 3.3 SNH1–SNH4) und
+`plugins` (ADR 0015): Beiträge mit `id` und Slot `markdown` | `autocomplete` | `lint` |
+`keymap` | `source` | `wysiwyg`. Slots hängen **hinter** dem Session-Chrome und werden mit
 der Präsentation neu konfiguriert. Sie dürfen kein `history()` ergänzen, Undo/Redo
 nicht an den View-State binden und `scrollIntoView` nicht als Navigation nutzen
-(I1, I3, I4). **Heading-nahe Block-Widgets** (Host-Slot, Pills, FM-form) müssen
+(I1, I3, I4). Roh-`extensions` / `presentationExtensions` sind deprecated.
+
+**Heading-nahe Block-Widgets** (Host-Slot, Pills, FM-form) müssen
 ihre Slot-Höhe **synchron** liefern (Zahl oder CSS / `estimatedHeight`) — nicht
 nach Hydration strecken (FM8, P6). `EditorView` bleibt außerhalb von § 12;
-Injection ist der Extensions-Slot. Overlay-Hosts nutzen `coords` / `scrollPort`
-(G4–G7), nicht `EditorView.findFromDOM`.
+Injection ist die Plugin-Registry. Overlay-Hosts nutzen `coords` / `scrollPort`
+(G4–G7), nicht `EditorView.findFromDOM`. Host-Plugin-Autoren importieren CM6-Typen
+über `synoptic-editor/cm`, nicht über `@codemirror/*` im App-Paket.
 
 `moveNode` platziert den Subtree so, dass die Tree-Projektion denselben Parent und
 Index ergibt — eine Rangverletzung oder ein Zug in den eigenen Subtree ist R7.

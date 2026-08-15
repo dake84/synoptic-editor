@@ -28,6 +28,8 @@
     "TreeNode",
     "ViewHandle",
     "ViewRestoreState",
-    "ViewScope"
+    "ViewScope",
+    "PluginContribution",
+    "PluginSlot"
   ]
 }

@@ -10,6 +10,7 @@ import type { StructureAction } from "./core/structure.js";
 import type { ForeignTimelineCommand } from "./core/timeline.js";
 import type { ResolvedTrackedPosition, TrackedPositionId } from "./core/tracked-position.js";
 import type { Range, StructureSchema, Tree } from "./core/types.js";
+import type { PluginContribution, PluginSlot } from "./view/plugin-registry.js";
 import type { IncludeMode, Presentation } from "./view/presentation.js";
 
 export type { Range, StructureLevel, StructureSchema, Tree, TreeNode } from "./core/types.js";
@@ -19,6 +20,7 @@ export type { TrackedPositionId, ResolvedTrackedPosition } from "./core/tracked-
 export type { IncludeMode, Presentation } from "./view/presentation.js";
 export type { ForeignTimelineCommand } from "./core/timeline.js";
 export type { InlineRefStyle } from "./core/chips.js";
+export type { PluginContribution, PluginSlot } from "./view/plugin-registry.js";
 
 export interface Policy {
   structureEditingInWysiwyg?: "locked" | "allowed";
@@ -68,12 +70,16 @@ export interface CreateViewOptions {
   showNodeHeading?: boolean;
   state?: ViewRestoreState;
   /**
-   * View-local CM6 extensions, appended after session chrome (reconfigured
-   * with presentation). Must not add `history()` or bind undo/redo to the
-   * view state; must not use `scrollIntoView` as navigation (I1, I3, I4).
+   * Named host plugins (ADR 0015). Slots: markdown, autocomplete, lint, keymap,
+   * source, wysiwyg. Must not add `history()` or bind undo/redo to the view
+   * state; must not use `scrollIntoView` as navigation (I1, I3, I4).
+   */
+  plugins?: PluginContribution[];
+  /**
+   * @deprecated Prefer `plugins`. Raw bags kept during Marli migration only.
    */
   extensions?: Extension[];
-  /** Extra extensions for one presentation only (e.g. host heading chrome in wysiwyg). */
+  /** @deprecated Prefer `plugins` with slot source/wysiwyg. */
   presentationExtensions?: Partial<Record<Presentation, Extension[]>>;
 }
 
@@ -121,8 +127,12 @@ export interface ViewHandle {
   /** Scroll a document range into view. `cause` is required (I4). */
   reveal(from: number, to: number, cause: string): void;
   /**
-   * Replace host extensions (same rules as `createView`). Reconfigures chrome;
-   * does not remount or clear history.
+   * Replace named host plugins (same rules as `createView`). Reconfigures
+   * chrome; does not remount or clear history (I3/U8).
+   */
+  setPlugins(plugins: PluginContribution[]): void;
+  /**
+   * @deprecated Prefer `setPlugins`.
    */
   setExtensions(
     extensions: Extension[],
