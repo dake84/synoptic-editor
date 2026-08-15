@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Heading widgets spike — slot height (C)</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <h1>Heading widgets spike — slot height before layout (C)</h1>
+    <p class="lead">
+      Small wysiwyg viewport + many headings (virtualized). Wheel through headings: if a
+      widget grows after <code>toDOM</code> / under-estimates height, <code>scrollTop</code>
+      corrects and the text jumps. This spike may use the mouse wheel — that is the host bug.
+      The command harness on :4173 stays command-only.
+    </p>
+
+    <div class="controls">
+      <label>
+        <input type="checkbox" name="mode" value="collapsible" checked />
+        1 · Collapsible heading
+      </label>
+      <label>
+        <input type="checkbox" name="correct" id="opt-correct" />
+        C · correct estimatedHeight (sync height)
+      </label>
+      <label>
+        <input type="checkbox" name="mode" value="native" />
+        2 · Native pills + FM form
+      </label>
+      <label>
+        <input type="checkbox" name="mode" value="late" />
+        3 · Late hydrate (+ microtask + requestMeasure)
+      </label>
+      <button type="button" id="btn-rebuild">Rebuild</button>
+      <button type="button" id="btn-navigate">navigateTo last section</button>
+      <button type="button" id="btn-reset">Reset metrics</button>
+    </div>
+
+    <div class="layout">
+      <div id="editor-host"></div>
+      <pre id="overlay">mounting…</pre>
+    </div>
+
+    <p class="hint">
+      Fail: layout shift or scrollTop/widget-height jump while only scrolling.
+      Pass: scroll is monotone; painted widget height equals <code>estimatedHeight</code>.
+      Collapsible chrome ≠ body fold.
+    </p>
+
+    <script src="./dist/bundle.js"></script>
+  </body>
+</html>

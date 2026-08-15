@@ -1,0 +1,188 @@
+/* Spike chrome — height contract demo (not host product UI). */
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  margin: 1rem 1.25rem;
+  color: #111;
+  background: #fafafa;
+}
+
+h1 {
+  font-size: 1.15rem;
+  margin: 0 0 0.35rem;
+}
+
+.lead {
+  margin: 0 0 0.75rem;
+  max-width: 52rem;
+  color: #333;
+  font-size: 0.92rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+.controls label {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.controls button {
+  font: inherit;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+#editor-host {
+  border: 1px solid #999;
+  background: #fff;
+  height: 280px; /* small viewport → virtualization */
+  overflow: hidden;
+}
+
+#editor-host .cm-editor {
+  height: 100%;
+}
+
+#editor-host .cm-scroller {
+  overflow: auto;
+}
+
+#overlay {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  background: #111;
+  color: #cfc;
+  font: 12px/1.4 ui-monospace, monospace;
+  white-space: pre-wrap;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #333;
+}
+
+#overlay.fail {
+  color: #fcc;
+  background: #311;
+}
+
+#overlay.pass {
+  color: #cfc;
+  background: #132;
+}
+
+/* Native synoptic chrome (copied from theme for spike serve root). */
+.syn-fm-form {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #f0f4f8;
+  border: 1px solid #bcd;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.syn-fm-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.syn-fm-row input {
+  flex: 1;
+}
+
+.syn-pill {
+  display: block;
+  box-sizing: border-box;
+  padding: 3px 8px;
+  background: #eef;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.syn-pill-hit,
+.syn-find-hit {
+  background: #fe9;
+}
+
+/* Collapsible heading slot (spike-only). No vertical margin — CM6 block widgets. */
+.spike-heading-slot {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  background: #f6f3ee;
+  border: 1px solid #c9bfb0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.spike-heading-slot[data-expanded="false"] {
+  /* collapsed: title row only — height set inline to match estimatedHeight */
+}
+
+.spike-heading-title {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+  line-height: 24px;
+  min-height: 24px;
+}
+
+.spike-heading-caret {
+  display: inline-block;
+  width: 1rem;
+  text-align: center;
+  color: #654;
+}
+
+.spike-heading-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 8px;
+  min-height: 56px;
+  align-content: flex-start;
+}
+
+.spike-heading-meta[hidden] {
+  display: none;
+}
+
+.spike-pill-dummy {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #dde6f5;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.hint {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: #444;
+  max-width: 52rem;
+}

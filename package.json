@@ -35,6 +35,8 @@
     "test:behaviour": "playwright test --pass-with-no-tests",
     "spike:phase0:build": "esbuild spikes/phase-0/main.ts --bundle --outfile=spikes/phase-0/dist/bundle.js --format=iife --platform=browser",
     "spike:phase0": "npm run spike:phase0:build && npx --yes serve spikes/phase-0 -l 4174",
+    "spike:heading-widgets:build": "esbuild spikes/heading-widgets/main.ts --bundle --outfile=spikes/heading-widgets/dist/bundle.js --format=iife --platform=browser",
+    "spike:heading-widgets": "npm run spike:heading-widgets:build && npx --yes serve spikes/heading-widgets -l 4176",
     "harness:build": "esbuild harness/main.ts --bundle --outfile=harness/dist/bundle.js --format=iife --platform=browser",
     "harness": "npm run harness:build && npx --yes serve harness -l 4173",
     "example:host:build": "cp src/theme.css examples/host/theme.css && esbuild examples/host/main.ts --bundle --outfile=examples/host/dist/bundle.js --format=iife --platform=browser",
