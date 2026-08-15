@@ -536,6 +536,31 @@ Nicht Gegenstand dieses Schnitts (bleiben `source` / ignore / spätere Phase): T
 Images, Fences, HTML-Blöcke, Task lists, Setext, eingerückter Code, Live-Links, Blockquotes,
 Listen-Marker.
 
+### 8.7 Heading-Stempel (Rang / Tiefe / Relativ)
+
+Jede **sichtbare** Schema-ATX im Ausschnitt trägt Line-Chrome (keine Document-Änderung, I9).
+Hosts stylen; die Komponente hat keinen Default-Look.
+
+| Token | Bedeutung |
+| ----- | --------- |
+| `headingDepth` | ATX-`#`-Anzahl |
+| `rank` | Schema-Rang von der Wurzel |
+| `rel` | `rank − scope.rank` |
+
+Klassen: `syn-depth-N`, `syn-rank-N`, `syn-rel-N` (negativ `syn-rel--1`). Attribute
+`data-heading-depth`, `data-rank`, `data-rel`. `setGrain` bleibt View-Zustand; es gibt
+keine zweite `syn-grain`-Klasse.
+
+`syn-section-open` liegt auf der **ersten Prosa-Zeile** nach der Überschrift (Leerzeilen und
+Frontmatter übersprungen). Dieselbe `data-rel`/`data-rank`/`data-heading-depth` wie die
+öffnende Überschrift. CM6-Zeilen sind flach — CSS `h + p` reicht für Dropcaps nicht.
+
+| # | Regel |
+| - | ----- |
+| **HS1** | Jede Schema-ATX im `ScopeRange` (außer SNH2-ausgeblendeter Scope-Überschrift) trägt depth, rank und rel. ATX außerhalb des Schemas bleibt ungestempelt. |
+| **HS2** | `rel` ist `heading.rank − scope.rank`. `setScope` aktualisiert Stempel ohne Remount (wie SNH3). |
+| **HS3** | Erste Prosa nach einer Schema-ATX (auch wenn deren Zeile per SNH2 versteckt ist) trägt `syn-section-open`. Nächste Schema-ATX ohne dazwischenliegende Prosa → kein Open für die äußere Überschrift. |
+
 ---
 
 ## 9 · Timeline
@@ -1185,6 +1210,12 @@ darf auf Zeit warten (I5).
 | # | Fall |
 | - | ---- |
 | **T133** | `showNodeHeading: false` in `wysiwyg`: DOM zeigt den Titel des Scope-Knotens nicht, Kind-Titel bleiben; Document behält die ATX-Zeile. `setScope` aufs Kind blendet *dessen* Heading aus. In `source` bleibt die Scope-Überschrift sichtbar. Suche nach dem Scope-Titel: kein Treffer in `wysiwyg`, Treffer in `source` (SNH2–SNH4/F4/F5). Default `true` ändert bestehende Fälle nicht (SNH1). |
+
+### Heading-Stempel
+
+| # | Fall |
+| - | ---- |
+| **T134** | Wysiwyg, Scope auf Rank-0-Knoten mit Kind Rank-1: Kind-Überschrift hat `data-rel="1"` und `data-rank` des Kindes; erste Prosa danach hat `syn-section-open` mit derselben `data-rel`. SNH2: Scope-ATX ohne Heading-Stempel, deren erste Prosa trotzdem `syn-section-open` `data-rel="0"` (HS1–HS3). |
 
 ---
 

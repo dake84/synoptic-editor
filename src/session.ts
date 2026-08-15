@@ -35,7 +35,7 @@ import {
 } from "./view/find-decorations.js";
 import { frontmatterLockFilter, wysiwygGuards } from "./view/guards/wysiwyg.js";
 import {
-  grainField,
+  headingStampField,
   hideOutsideField,
   wysiwygAtomField,
   wysiwygDecorationField,
@@ -536,11 +536,24 @@ export class Session implements PublicSession {
           write: (blockFrom, key, value) => this.writeFrontmatterField(blockFrom, key, value),
         }),
         wysiwygGuards({ structureLocked: locked, inlineRefStyle: this.policy.inlineRefStyle }),
-        grainField(slot.rangeField, this.schema, slot.grain),
+        headingStampField(
+          slot.rangeField,
+          this.schema,
+          this.treeState.nodes.get(slot.scope.nodeId)?.rank ?? 0,
+          hideOpts,
+        ),
         ...host,
       ];
     }
-    return [hideOutsideField(slot.rangeField), grainField(slot.rangeField, this.schema, slot.grain), ...host];
+    return [
+      hideOutsideField(slot.rangeField),
+      headingStampField(
+        slot.rangeField,
+        this.schema,
+        this.treeState.nodes.get(slot.scope.nodeId)?.rank ?? 0,
+      ),
+      ...host,
+    ];
   }
 
   /** Form / API path (L5): writes YAML via one ChangeSet (FM3). */

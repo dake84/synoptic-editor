@@ -28,8 +28,32 @@ const hideRange = Decoration.replace({
 const hideMarker = Decoration.replace({});
 const hideMask = Decoration.replace({});
 const atomMark = Decoration.mark({});
-const grainMark = (rank: number) =>
-  Decoration.line({ class: `syn-grain syn-rank-${rank}`, attributes: { "data-rank": String(rank) } });
+
+function relClassName(rel: number): string {
+  return rel < 0 ? `syn-rel--${-rel}` : `syn-rel-${rel}`;
+}
+
+function headingLineDeco(depth: number, rank: number, rel: number): Decoration {
+  return Decoration.line({
+    class: `syn-depth-${depth} syn-rank-${rank} ${relClassName(rel)}`,
+    attributes: {
+      "data-heading-depth": String(depth),
+      "data-rank": String(rank),
+      "data-rel": String(rel),
+    },
+  });
+}
+
+function sectionOpenDeco(depth: number, rank: number, rel: number): Decoration {
+  return Decoration.line({
+    class: "syn-section-open",
+    attributes: {
+      "data-heading-depth": String(depth),
+      "data-rank": String(rank),
+      "data-rel": String(rel),
+    },
+  });
+}
 
 const INLINE_MARK: Record<InlineMarkKind, Decoration> = {
   em: Decoration.mark({ class: "syn-em" }),
@@ -182,16 +206,53 @@ function buildWysiwygAtoms(
   return builder.finish();
 }
 
-function headingLineStarts(doc: string, schema: StructureSchema): { pos: number; rank: number }[] {
+function headingLineStarts(
+  doc: string,
+  schema: StructureSchema,
+): { pos: number; rank: number; headingDepth: number }[] {
   const depthToRank = new Map(schema.levels.map((l) => [l.headingDepth, l.rank]));
-  const out: { pos: number; rank: number }[] = [];
+  const out: { pos: number; rank: number; headingDepth: number }[] = [];
   const re = /^(#{1,6})[ \t]+.+$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(doc))) {
-    const rank = depthToRank.get(m[1]!.length);
-    if (rank !== undefined) out.push({ pos: m.index, rank });
+    const headingDepth = m[1]!.length;
+    const rank = depthToRank.get(headingDepth);
+    if (rank !== undefined) out.push({ pos: m.index, rank, headingDepth });
   }
   return out;
+}
+
+function nextLineFrom(doc: string, pos: number): number | null {
+  const nl = doc.indexOf("\n", pos);
+  if (nl < 0 || nl + 1 >= doc.length) return null;
+  return nl + 1;
+}
+
+function lineEnd(doc: string, from: number): number {
+  const nl = doc.indexOf("\n", from);
+  return nl < 0 ? doc.length : nl;
+}
+
+function firstProseAfterHeading(
+  doc: string,
+  headingPos: number,
+  rangeTo: number,
+  schemaHeadings: ReadonlySet<number>,
+  fm: readonly { from: number; to: number }[],
+): number | null {
+  let pos = nextLineFrom(doc, headingPos);
+  while (pos !== null && pos < rangeTo) {
+    const inFm = fm.some((b) => pos! >= b.from && pos! < b.to);
+    if (inFm) {
+      pos = nextLineFrom(doc, pos);
+      continue;
+    }
+    if (schemaHeadings.has(pos)) return null;
+    const end = lineEnd(doc, pos);
+    if (doc.slice(pos, end).trim() !== "") return pos;
+    pos = nextLineFrom(doc, pos);
+  }
+  return null;
 }
 
 export function hideOutsideField(rangeField: StateField<ScopeRange>): StateField<DecorationSet> {
@@ -257,32 +318,66 @@ export function wysiwygAtomField(
   });
 }
 
-export function grainField(
+export function headingStampField(
   rangeField: StateField<ScopeRange>,
   schema: StructureSchema,
-  grain: number,
+  scopeRank: number,
+  hideOpts?: ScopeHeadingHideOpts | null,
 ): StateField<DecorationSet> {
   return StateField.define<DecorationSet>({
     create(state) {
-      return buildGrain(state.doc.toString(), state.field(rangeField), schema, grain);
+      return buildHeadingStamps(
+        state.doc.toString(),
+        state.field(rangeField),
+        schema,
+        scopeRank,
+        resolveScopeHeadingHide(state.doc.toString(), hideOpts),
+      );
     },
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
       if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
-      return buildGrain(tr.state.doc.toString(), r, schema, grain);
+      const doc = tr.state.doc.toString();
+      return buildHeadingStamps(doc, r, schema, scopeRank, resolveScopeHeadingHide(doc, hideOpts));
     },
     provide: (field) => EditorView.decorations.from(field),
   });
 }
 
-function buildGrain(doc: string, r: ScopeRange, schema: StructureSchema, grain: number): DecorationSet {
+/** @deprecated Use {@link headingStampField}. */
+export const grainField = headingStampField;
+
+function buildHeadingStamps(
+  doc: string,
+  r: ScopeRange,
+  schema: StructureSchema,
+  scopeRank: number,
+  hideHeading: { from: number; to: number } | null,
+): DecorationSet {
   if (r.lost) return Decoration.none;
-  const builder = new RangeSetBuilder<Decoration>();
-  for (const h of headingLineStarts(doc, schema)) {
-    if (h.pos < r.from || h.pos >= r.to) continue;
-    if (h.rank <= grain) builder.add(h.pos, h.pos, grainMark(h.rank));
+  const headings = headingLineStarts(doc, schema).filter((h) => h.pos >= r.from && h.pos < r.to);
+  const schemaPos = new Set(headings.map((h) => h.pos));
+  const fm = [...projectTree(doc, schema).nodes.values()]
+    .map((n) => n.frontmatter)
+    .filter((b): b is { from: number; to: number } => b != null && b.to > b.from);
+  const hideFrom = hideHeading && hideHeading.to > hideHeading.from ? hideHeading.from : -1;
+  const hideTo = hideHeading && hideHeading.to > hideHeading.from ? hideHeading.to : -1;
+  const marks: { from: number; deco: Decoration }[] = [];
+  const openUsed = new Set<number>();
+  for (const h of headings) {
+    const rel = h.rank - scopeRank;
+    const hidden = hideFrom >= 0 && h.pos >= hideFrom && h.pos < hideTo;
+    if (!hidden) marks.push({ from: h.pos, deco: headingLineDeco(h.headingDepth, h.rank, rel) });
+    const open = firstProseAfterHeading(doc, h.pos, r.to, schemaPos, fm);
+    if (open != null && !openUsed.has(open)) {
+      openUsed.add(open);
+      marks.push({ from: open, deco: sectionOpenDeco(h.headingDepth, h.rank, rel) });
+    }
   }
+  marks.sort((a, b) => a.from - b.from);
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const m of marks) builder.add(m.from, m.from, m.deco);
   return builder.finish();
 }
 

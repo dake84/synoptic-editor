@@ -70,3 +70,6 @@
 }
 
 /* Visible chip label (W1). No default look — hosts style `.syn-chip`. */
+
+/* Heading stamps (HS1–HS3). No default look — hosts style `.syn-depth-*` / `.syn-rank-*` /
+ * `.syn-rel-*` / `.syn-section-open`. */
