@@ -50,7 +50,11 @@ export function chipAtomField(
 function visibleChips(doc: string, r: ScopeRange, style: InlineRefStyle) {
   if (r.lost) return [];
   const comments = findHtmlComments(doc, r.from, r.to);
-  return findChips(doc, r.from, r.to, style).filter((c) => !overlapsAny(c, comments));
+  // W7 synthetic chips (no text node): host/widget replace comes later — hide only
+  // chrome around real label text so self-closing tags are not wiped invisible.
+  return findChips(doc, r.from, r.to, style).filter(
+    (c) => c.textNode && !overlapsAny(c, comments),
+  );
 }
 
 function hideRangeSlices(doc: string, from: number, to: number, builder: RangeSetBuilder<Decoration>): void {

@@ -3,6 +3,8 @@
   "exports": [
     "createSession",
     "createTimeline",
+    "findChips",
+    "ChipSpan",
     "CoordRect",
     "CreateSessionOptions",
     "CreateViewOptions",

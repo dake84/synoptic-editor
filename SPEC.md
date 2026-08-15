@@ -781,6 +781,7 @@ Deckung.
 | -------- | --- |
 | `createSession({ doc, schema, policy?, timeline?, strings? })` | Session |
 | `createTimeline()` | Timeline — Host erzeugt sie, wenn er Einträge schieben oder eine Zeitachse teilen will (U12/U13). Ohne Argument legt `createSession` eine eigene an. |
+| `findChips(doc, from?, to?, style?)` | rein — Chip-Spans für `attribute-block` / `html-ref` (I6, § 8.3). Eine Scanner-Stelle für Host und Komponente. |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
@@ -870,6 +871,15 @@ Papierbogen, angepinnte Heading und Gutter-UI sind **Host-Chrome**, kein Teil di
 
 ```
 CoordRect = { top: number, left: number, bottom: number, right: number }
+
+ChipSpan = {
+  from: number, to: number,       // whole chip including chrome
+  labelFrom: number, labelTo: number,
+  attrsFrom: number, attrsTo: number,
+  label: string,
+  attrs: string,
+  textNode: boolean,              // false = W7 (no text node; synthetic label)
+}
 
 SearchHit = {
   id:    string,

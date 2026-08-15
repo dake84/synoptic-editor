@@ -15,22 +15,59 @@ See <item-ref id="a">Alpha</item-ref> and more.
 
 describe("html-ref chips", () => {
   /** @covers W6, T121 */
-  it("splits label from tags; rejects empty, self-closing, and mismatched close", () => {
+  it("splits label from tags; rejects mismatched close and nested markup", () => {
     const scan = (s: string) => findChips(s, 0, s.length, "html-ref");
     const chips = scan('See <item-ref id="a">Alpha</item-ref> x');
     expect(chips).toHaveLength(1);
     expect(chips[0]!.label).toBe("Alpha");
     expect(chips[0]!.attrs).toContain('id="a"');
+    expect(chips[0]!.textNode).toBe(true);
 
-    expect(scan('<item-ref id="a"></item-ref>')).toHaveLength(0);
-    expect(scan('<item-ref id="a"/>')).toHaveLength(0);
-    expect(scan('<item-ref id="a" />')).toHaveLength(0);
     expect(scan('<item-ref id="a">Alpha</node-ref>')).toHaveLength(0);
     expect(scan('<item-ref id="a"><x>Alpha</x></item-ref>')).toHaveLength(0);
 
     const nested = scan('<node-x-ref id="n">Q</node-x-ref>');
     expect(nested).toHaveLength(1);
     expect(nested[0]!.label).toBe("Q");
+  });
+
+  /** @covers W7, T125 */
+  it("treats self-closing and empty bodies as synthetic-label chips", () => {
+    const scan = (s: string) => findChips(s, 0, s.length, "html-ref");
+
+    const self = scan('<item-ref id="solo"/>');
+    expect(self).toHaveLength(1);
+    expect(self[0]!.textNode).toBe(false);
+    expect(self[0]!.label).toBe("solo");
+    expect(self[0]!.labelFrom).toBe(self[0]!.labelTo);
+
+    const spaced = scan('<item-ref id="solo" />');
+    expect(spaced).toHaveLength(1);
+    expect(spaced[0]!.textNode).toBe(false);
+    expect(spaced[0]!.label).toBe("solo");
+
+    const empty = scan('<item-ref id="empty"></item-ref>');
+    expect(empty).toHaveLength(1);
+    expect(empty[0]!.textNode).toBe(false);
+    expect(empty[0]!.label).toBe("empty");
+
+    const commentOnly = scan('<item-ref id="c"><!-- note --></item-ref>');
+    expect(commentOnly).toHaveLength(1);
+    expect(commentOnly[0]!.textNode).toBe(false);
+    expect(commentOnly[0]!.label).toBe("c");
+  });
+
+  /** @covers W6 */
+  it("ignores markdown-escaped opens and incomplete opens across newlines", () => {
+    const scan = (s: string) => findChips(s, 0, s.length, "html-ref");
+    expect(scan('\\<item-ref id="a">Alpha</item-ref>')).toHaveLength(0);
+
+    const complete = '<item-ref id="loc">label</item-ref>';
+    const glued = `<item-ref\n${complete}\nAfter`;
+    const chips = scan(glued);
+    expect(chips).toHaveLength(1);
+    expect(glued.slice(chips[0]!.from, chips[0]!.to)).toBe(complete);
+    expect(chips[0]!.label).toBe("label");
   });
 
   /** @covers W6, T124 */
@@ -40,6 +77,7 @@ describe("html-ref chips", () => {
     expect(findChips(html, 0, html.length, "attribute-block")).toHaveLength(0);
     expect(findChips(block, 0, block.length, "html-ref")).toHaveLength(0);
     expect(findChips(block, 0, block.length, "attribute-block")).toHaveLength(1);
+    expect(findChips(block, 0, block.length, "attribute-block")[0]!.textNode).toBe(true);
   });
 });
 

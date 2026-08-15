@@ -32,6 +32,9 @@ export {
   type ProtectedWidgetFactory,
 } from "./view/widgets/protected.js";
 
+export { findChips } from "./core/chips.js";
+export type { ChipSpan } from "./core/chips.js";
+
 export type {
   CoordRect,
   CreateSessionOptions,
