@@ -143,6 +143,19 @@ session.isSubtreeDirty(n) := text(subtreeRange(n)) ≠ baseline(subtreeRange(n))
 
 Der Puffer ist in beiden identisch.
 
+**Scope-Überschrift in `wysiwyg`:** `showNodeHeading` (View-Option, Default `true`) steuert, ob
+die ATX-Zeile des **aktuellen Scope-Knotens** in der Wysiwyg-Fläche leser-sichtbar ist.
+`false` blendet genau diese eine Überschrift aus (Titel + Marker + folgendes Newline) —
+Kind-Überschriften bleiben sichtbar. Der Pin/Chrome darüber ist Host-Sache (§ 12.1); die
+Komponente kennt keinen Pin. In `source` ist die Option wirkungslos.
+
+| # | Regel |
+| - | ----- |
+| **SNH1** | `showNodeHeading: true` (Default): Scope-Überschrift wie jede andere sichtbare Überschrift (L4, F6). |
+| **SNH2** | `showNodeHeading: false` in `wysiwyg`: die Heading-Range des Scope-Knotens (`TreeNode.heading`, inkl. folgendem Newline) ist ausgeblendet und nicht per Caret erreichbar. Kind-Überschriften im Ausschnitt bleiben sichtbar und editierbar. |
+| **SNH3** | `setScope` / `setShowNodeHeading` aktualisieren die Ausblendung ohne Remount und ohne Timeline-Eintrag (wie `setGrain`). |
+| **SNH4** | Die ausgeblendete Scope-Überschrift nimmt an der Wysiwyg-Suche nicht teil (F4); in `source` bleibt sie suchbar (F5). |
+
 ### 3.4 TrackedPosition
 
 Eine **TrackedPosition** ist eine Marke auf einer Position oder einem Bereich, die durch jede
@@ -191,7 +204,7 @@ Session (I10), sondern wird als Wert herausgegeben.
 ```
 view.getState() → {
   scope: { nodeId, include },
-  presentation, grain,
+  presentation, grain, showNodeHeading,
   scrollAt: TrackedPositionId,   // § 3.4
   caretAt:  TrackedPositionId,
   findState,
@@ -401,7 +414,7 @@ Dispatch auslösen.
 | **L1** | Marker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. Inline-Delimiter (§ 8.6) sind dieselbe Atom-Familie — je Delimiter-Run (`*` / `**` / `_` / `__` / `~~` / Backtick-Run), nicht die ganze Spanne. In `source` ist `##` zwei Zeichen, kein Atom. |
 | **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. In `wysiwyg` blendet die Darstellung den Maskierungs-Backslash aus (`\#` liest als `#`); der Puffer behält `\#`. Löschen des sichtbaren `#` entfernt den Backslash mit. |
 | **L3** | Mehrzeiliges Einfügen wird in einem Schritt maskiert und in einem Schritt zurückgenommen. |
-| **L4** | Überschriftentext bleibt in `wysiwyg` immer editierbar, unabhängig von `policy.structureEditingInWysiwyg`. |
+| **L4** | Überschriftentext bleibt in `wysiwyg` editierbar, unabhängig von `policy.structureEditingInWysiwyg` — **außer** der Scope-Überschrift, wenn `showNodeHeading: false` (SNH2): die ist ausgeblendet und nicht erreichbar. |
 | **L5** | Programmatische Änderungen umgehen die Sperren gezielt (Widgets, API, Undo). |
 | **L6** | Sperrdefinition an genau einer Stelle (I6). |
 
@@ -800,7 +813,7 @@ steht.
 | `view.mount(el)` · `view.destroy()` | Lebenszyklus |
 | `view.getState()` | lesend — Wiederherstellungszustand mit TrackedPositions (§ 3.5) |
 | `view.setScope(nodeId, { include: 'own' \| 'subtree' })` | Kommando — Umfang (§ 3.1) |
-| `view.setPresentation(p)` · `setGrain(rank)` | Kommando |
+| `view.setPresentation(p)` · `setGrain(rank)` · `setShowNodeHeading(show)` | Kommando |
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.reveal(from, to, cause)` | Kommando — Range in den Viewport (Find-Offsets); `cause` Pflicht (I4) |
@@ -873,16 +886,16 @@ StructureAction =
 replaceAll → { prose: number, metadata: number, rejected?: number }
 ```
 
-`createView` nimmt optional `extensions` (alle Präsentationen) und
-`presentationExtensions` (`source` / `wysiwyg`). Host-Extensions hängen **hinter**
-dem Session-Chrome und werden mit der Präsentation neu konfiguriert. Sie dürfen
-kein `history()` ergänzen, Undo/Redo nicht an den View-State binden und
-`scrollIntoView` nicht als Navigation nutzen (I1, I3, I4). **Heading-nahe
-Block-Widgets** (Host-Slot, Pills, FM-form) müssen ihre Slot-Höhe **synchron**
-liefern (Zahl oder CSS / `estimatedHeight`) — nicht nach Hydration strecken
-(FM8, P6). `EditorView` bleibt außerhalb von § 12; Injection ist der
-Extensions-Slot. Overlay-Hosts nutzen `coords` / `scrollPort` (G4–G7), nicht
-`EditorView.findFromDOM`.
+`createView` nimmt optional `showNodeHeading` (Default `true`, § 3.3 SNH1–SNH4),
+`extensions` (alle Präsentationen) und `presentationExtensions` (`source` /
+`wysiwyg`). Host-Extensions hängen **hinter** dem Session-Chrome und werden mit
+der Präsentation neu konfiguriert. Sie dürfen kein `history()` ergänzen, Undo/Redo
+nicht an den View-State binden und `scrollIntoView` nicht als Navigation nutzen
+(I1, I3, I4). **Heading-nahe Block-Widgets** (Host-Slot, Pills, FM-form) müssen
+ihre Slot-Höhe **synchron** liefern (Zahl oder CSS / `estimatedHeight`) — nicht
+nach Hydration strecken (FM8, P6). `EditorView` bleibt außerhalb von § 12;
+Injection ist der Extensions-Slot. Overlay-Hosts nutzen `coords` / `scrollPort`
+(G4–G7), nicht `EditorView.findFromDOM`.
 
 `moveNode` platziert den Subtree so, dass die Tree-Projektion denselben Parent und
 Index ergibt — eine Rangverletzung oder ein Zug in den eigenen Subtree ist R7.
@@ -1152,6 +1165,12 @@ darf auf Zeit warten (I5).
 | - | ---- | ---------- |
 | **T126** | Ungemountet: `scrollPort` ist `null`, `coords(0, 0)` ist `null` (G6). Nach `mount` ist `scrollPort` das CM6-`scrollDOM`; `coords` für eine gültige Range liefert eine Box mit `bottom ≥ top` und `right ≥ left` (G4/G5). | Vertrag für Overlay ohne `EditorView`-Leak |
 | **T127** | `coords` liegt relativ zum Scrollport inkl. Scroll-Offset: nach programmatischem Scroll ändert sich die Box konsistent mit `scrollTop` (G4); Persistenz bleibt TrackedPosition, nicht Pixel (V3). | Overlay wandert mit dem Text |
+
+### Scope-Überschrift (`showNodeHeading`)
+
+| # | Fall |
+| - | ---- |
+| **T133** | `showNodeHeading: false` in `wysiwyg`: DOM zeigt den Titel des Scope-Knotens nicht, Kind-Titel bleiben; Document behält die ATX-Zeile. `setScope` aufs Kind blendet *dessen* Heading aus. In `source` bleibt die Scope-Überschrift sichtbar. Suche nach dem Scope-Titel: kein Treffer in `wysiwyg`, Treffer in `source` (SNH2–SNH4/F4/F5). Default `true` ändert bestehende Fälle nicht (SNH1). |
 
 ---
 

@@ -31,6 +31,8 @@ export interface SearchOptions {
   /** Chip syntax for this session (W6). Default `attribute-block`. */
   inlineRefStyle?: InlineRefStyle;
   tree?: Tree;
+  /** Scope node whose heading is hidden in wysiwyg (SNH4) — exclude its title from prose hits. */
+  hideHeadingNodeId?: string;
 }
 
 interface Segment {
@@ -87,7 +89,8 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     // Skip past frontmatter if somehow overlapping (ownRange usually starts at FM)
     const proseStart = Math.max(titleFrom, node.frontmatter ? node.frontmatter.to : titleFrom);
     const comments = findHtmlComments(doc, ownFrom, ownTo);
-    if (titleFrom < titleTo) {
+    const hideScopeTitle = opts.hideHeadingNodeId !== undefined && node.id === opts.hideHeadingNodeId;
+    if (!hideScopeTitle && titleFrom < titleTo) {
       const titleHoles: Range[] = [
         ...comments,
         ...inlineDelimiterRanges(findInlineMarks(doc, titleFrom, titleTo)),

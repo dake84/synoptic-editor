@@ -50,6 +50,8 @@ export interface ViewRestoreState {
   scope: ViewScope;
   presentation: Presentation;
   grain: number;
+  /** Whether the scope node's ATX heading is reader-visible in wysiwyg (SNH1). */
+  showNodeHeading: boolean;
   scrollAt: TrackedPositionId;
   caretAt: TrackedPositionId;
   findState: unknown;
@@ -59,6 +61,11 @@ export interface CreateViewOptions {
   scope?: { nodeId: string; include?: IncludeMode };
   presentation?: Presentation;
   grain?: number;
+  /**
+   * When false in wysiwyg, hide the scope node's ATX heading (host pin owns the
+   * title). Default true. No effect in source (SNH1–SNH4).
+   */
+  showNodeHeading?: boolean;
   state?: ViewRestoreState;
   /**
    * View-local CM6 extensions, appended after session chrome (reconfigured
@@ -107,6 +114,8 @@ export interface ViewHandle {
   setScope(nodeId: string, opts?: { include?: IncludeMode }): void;
   setPresentation(p: Presentation): void;
   setGrain(rank: number): void;
+  /** Toggle scope-heading visibility in wysiwyg (SNH3). No remount. */
+  setShowNodeHeading(show: boolean): void;
   navigateTo(nodeId: string): void;
   scrollToNode(nodeId: string, cause: string): void;
   /** Scroll a document range into view. `cause` is required (I4). */

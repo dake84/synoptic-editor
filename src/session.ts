@@ -93,6 +93,7 @@ interface ViewSlot {
   scope: ViewScope;
   presentation: Presentation;
   grain: number;
+  showNodeHeading: boolean;
   visibleNode: string | null;
   lastScrollCause: string | null;
   caretAt: TrackedPositionId;
@@ -391,6 +392,7 @@ export class Session implements PublicSession {
     let scope: ViewScope;
     let presentation: Presentation = opts.presentation ?? "source";
     let grain = opts.grain ?? this.defaultGrain();
+    let showNodeHeading = opts.showNodeHeading ?? true;
     let caretAt: TrackedPositionId;
     let scrollAt: TrackedPositionId;
     let handedOut = false;
@@ -404,6 +406,7 @@ export class Session implements PublicSession {
       ancestry = ancestryOf(this.treeState, scope.nodeId);
       presentation = opts.state.presentation;
       grain = opts.state.grain;
+      showNodeHeading = opts.state.showNodeHeading ?? true;
       caretAt = opts.state.caretAt;
       scrollAt = opts.state.scrollAt;
       handedOut = true;
@@ -424,6 +427,7 @@ export class Session implements PublicSession {
       scope,
       presentation,
       grain,
+      showNodeHeading,
       visibleNode: scope.nodeId || null,
       lastScrollCause: null,
       caretAt,
@@ -512,9 +516,14 @@ export class Session implements PublicSession {
         ? [...slot.hostExtensions, ...(slot.presentationExtensions.wysiwyg ?? [])]
         : [...slot.hostExtensions, ...(slot.presentationExtensions.source ?? [])];
     if (slot.presentation === "wysiwyg") {
+      const hideOpts = {
+        showNodeHeading: slot.showNodeHeading,
+        scopeNodeId: slot.scope.nodeId,
+        schema: this.schema,
+      };
       return [
-        wysiwygDecorationField(slot.rangeField),
-        wysiwygAtomField(slot.rangeField),
+        wysiwygDecorationField(slot.rangeField, hideOpts),
+        wysiwygAtomField(slot.rangeField, hideOpts),
         chipDecorationField(slot.rangeField, this.policy.inlineRefStyle),
         chipAtomField(slot.rangeField, this.policy.inlineRefStyle),
         frontmatterField(slot.rangeField, this.schema, this.policy.frontmatterInWysiwyg),
@@ -610,6 +619,8 @@ export class Session implements PublicSession {
         annotations: [Transaction.addToHistory.of(false)],
       },
     ]);
+    // Scope heading hide targets the new node (SNH3).
+    this.refreshChrome(slot);
   }
 
   private refreshChrome(slot: ViewSlot): void {
@@ -672,6 +683,7 @@ export class Session implements PublicSession {
           scope: { ...slot.scope },
           presentation: slot.presentation,
           grain: slot.grain,
+          showNodeHeading: slot.showNodeHeading,
           scrollAt: slot.scrollAt,
           caretAt: slot.caretAt,
           findState: { ancestry: slot.ancestry },
@@ -699,6 +711,13 @@ export class Session implements PublicSession {
       setGrain(rank: number) {
         const slot = session.requireSlot(id);
         slot.grain = rank;
+        session.refreshChrome(slot);
+        session.emit({ type: "views" });
+      },
+      setShowNodeHeading(show: boolean) {
+        const slot = session.requireSlot(id);
+        if (slot.showNodeHeading === show) return;
+        slot.showNodeHeading = show;
         session.refreshChrome(slot);
         session.emit({ type: "views" });
       },
@@ -777,6 +796,8 @@ export class Session implements PublicSession {
           pillFields: session.policy.pillFields,
           inlineRefStyle: session.policy.inlineRefStyle,
           tree: session.treeState,
+          hideHeadingNodeId:
+            slot.presentation === "wysiwyg" && !slot.showNodeHeading ? slot.scope.nodeId : undefined,
         });
         slot.findHits = hits;
         slot.findQuery = query;
