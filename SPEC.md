@@ -562,6 +562,16 @@ Frontmatter übersprungen). Dieselbe `data-rel`/`data-rank`/`data-heading-depth`
 | **HS2** | `rel` ist `heading.rank − scope.rank`. `setScope` aktualisiert Stempel ohne Remount (wie SNH3). |
 | **HS3** | Erste Prosa nach einer Schema-ATX (auch wenn deren Zeile per SNH2 versteckt ist) trägt `syn-section-open`. Nächste Schema-ATX ohne dazwischenliegende Prosa → kein Open für die äußere Überschrift. |
 
+### 8.8 Markdown-Kommandos
+
+Generische Quelltext-Edits. Kein Schema, keine Ränge, keine Knotentypen.
+
+| # | Regel |
+| - | ----- |
+| **C1** | `setHeadingLevel(view, depth)` ersetzt das ATX-Präfix der aktuellen Zeile durch `#{1,6}` plus genau ein Leerzeichen. `depth` ist die Hash-Anzahl, kein Schema-Rang. Bestehendes Präfix `#{1,6}[ \t]+` wird ersetzt; ohne Präfix wird es vorn eingefügt. |
+| **C2** | `insertListPrefix(view, '-' \| '1.')` setzt den Listenmarker der aktuellen Zeile: fehlender Marker wird nach dem Einzug eingefügt; anderer Markertyp wird getauscht; derselbe Typ ein zweites Mal entfernt den Marker und behält den Einzug. |
+| **C3** | `toggleWrapSelection(view, open, close?)` umschließt die Selektion mit den gegebenen Markern (`close` default = `open`). Ein leerer Caret expandiert zuerst auf das umgebende Wort in der Zeile (Buchstaben, Ziffern, `_`). Die Selektion liegt danach auf dem umschlossenen Text, nicht auf den Markern. |
+
 ---
 
 ## 9 · Timeline
@@ -809,6 +819,7 @@ Deckung.
 | `createTimeline()` | Timeline — Host erzeugt sie, wenn er Einträge schieben oder eine Zeitachse teilen will (U12/U13). Ohne Argument legt `createSession` eine eigene an. |
 | `findChips(doc, from?, to?, style?)` | rein — Chip-Spans für `attribute-block` / `html-ref` (I6, § 8.3). Eine Scanner-Stelle für Host und Komponente. |
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
+| `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
