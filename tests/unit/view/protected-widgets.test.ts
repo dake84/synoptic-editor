@@ -39,14 +39,14 @@ class RecordingWidget extends WidgetType {
   ) {
     super();
   }
-  eq(other: RecordingWidget): boolean {
+  override eq(other: RecordingWidget): boolean {
     return (
       this.text === other.text &&
       this.activeMatch?.from === other.activeMatch?.from &&
       this.activeMatch?.to === other.activeMatch?.to
     );
   }
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const el = document.createElement("div");
     el.textContent = this.text;
     if (this.activeMatch) el.dataset.activeFrom = String(this.activeMatch.from);

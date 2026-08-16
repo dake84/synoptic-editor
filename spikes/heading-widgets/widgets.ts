@@ -56,7 +56,7 @@ export class CollapsibleHeadingWidget extends WidgetType {
     super();
   }
 
-  eq(other: CollapsibleHeadingWidget): boolean {
+  override eq(other: CollapsibleHeadingWidget): boolean {
     return (
       this.nodeId === other.nodeId &&
       this.title === other.title &&
@@ -65,12 +65,12 @@ export class CollapsibleHeadingWidget extends WidgetType {
     );
   }
 
-  get estimatedHeight(): number {
+  override get estimatedHeight(): number {
     if (this.mode === "broken" || this.mode === "late") return SLOT_BROKEN_ESTIMATE;
     return this.expanded ? SLOT_EXPANDED : SLOT_COLLAPSED;
   }
 
-  toDOM(view: EditorView): HTMLElement {
+  override toDOM(view: EditorView): HTMLElement {
     const root = document.createElement("div");
     root.className = "spike-heading-slot";
     root.dataset.nodeId = this.nodeId;
@@ -130,7 +130,7 @@ export class CollapsibleHeadingWidget extends WidgetType {
     return root;
   }
 
-  ignoreEvent(event: Event): boolean {
+  override ignoreEvent(event: Event): boolean {
     return !(event.type === "mousedown" || event.type === "click");
   }
 }

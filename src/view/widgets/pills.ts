@@ -26,15 +26,15 @@ export class PillWidget extends WidgetType {
     super();
   }
 
-  eq(other: PillWidget): boolean {
+  override eq(other: PillWidget): boolean {
     return this.key === other.key && this.value === other.value && this.highlight === other.highlight;
   }
 
-  get estimatedHeight(): number {
+  override get estimatedHeight(): number {
     return PILL_BLOCK_HEIGHT;
   }
 
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const el = document.createElement("span");
     el.className = "syn-pill";
     el.setAttribute("contenteditable", "false");
@@ -56,7 +56,7 @@ export class PillWidget extends WidgetType {
     return el;
   }
 
-  ignoreEvent(): boolean {
+  override ignoreEvent(): boolean {
     return true;
   }
 }

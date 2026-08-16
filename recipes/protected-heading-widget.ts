@@ -23,7 +23,7 @@ class ProtectedHeadingWidget extends WidgetType {
     super();
   }
 
-  eq(other: ProtectedHeadingWidget): boolean {
+  override eq(other: ProtectedHeadingWidget): boolean {
     return (
       this.text === other.text &&
       this.activeMatch?.from === other.activeMatch?.from &&
@@ -31,7 +31,7 @@ class ProtectedHeadingWidget extends WidgetType {
     );
   }
 
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const el = document.createElement("div");
     el.className = "spike-protected-heading";
     el.setAttribute("contenteditable", "false");
@@ -51,7 +51,7 @@ class ProtectedHeadingWidget extends WidgetType {
     return el;
   }
 
-  ignoreEvent(): boolean {
+  override ignoreEvent(): boolean {
     return true;
   }
 }

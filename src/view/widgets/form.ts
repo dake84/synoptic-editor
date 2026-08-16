@@ -42,7 +42,7 @@ export class FrontmatterFormWidget extends WidgetType {
     super();
   }
 
-  eq(other: FrontmatterFormWidget): boolean {
+  override eq(other: FrontmatterFormWidget): boolean {
     return (
       this.blockFrom === other.blockFrom &&
       this.fields.length === other.fields.length &&
@@ -50,11 +50,11 @@ export class FrontmatterFormWidget extends WidgetType {
     );
   }
 
-  get estimatedHeight(): number {
+  override get estimatedHeight(): number {
     return formBlockHeight(this.fields.length);
   }
 
-  toDOM(view: EditorView): HTMLElement {
+  override toDOM(view: EditorView): HTMLElement {
     const root = document.createElement("div");
     root.className = "syn-fm-form";
     root.setAttribute("contenteditable", "false");
@@ -90,11 +90,11 @@ export class FrontmatterFormWidget extends WidgetType {
    * true = editor ignores the event (default). false made clicks set the caret
    * past the atomic FM range instead of focusing the inputs.
    */
-  ignoreEvent(): boolean {
+  override ignoreEvent(): boolean {
     return true;
   }
 
-  updateDOM(dom: HTMLElement): boolean {
+  override updateDOM(dom: HTMLElement): boolean {
     dom.dataset.blockFrom = String(this.blockFrom);
     const h = formBlockHeight(this.fields.length);
     dom.style.height = `${h}px`;
@@ -112,17 +112,17 @@ function cssEscape(value: string): string {
 }
 
 class EmptyBlockWidget extends WidgetType {
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const el = document.createElement("span");
     el.className = "syn-fm-hidden";
     el.style.height = "0px";
     el.style.display = "block";
     return el;
   }
-  get estimatedHeight(): number {
+  override get estimatedHeight(): number {
     return 0;
   }
-  eq(): boolean {
+  override eq(): boolean {
     return true;
   }
 }
