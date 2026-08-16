@@ -146,6 +146,19 @@ export function snapOutOfHeadingMarkers(sel: EditorSelection, doc: string): Edit
   return EditorSelection.create(ranges, sel.mainIndex);
 }
 
+function shiftSelection(
+  sel: EditorSelection | undefined,
+  deltas: { at: number; delta: number }[],
+): EditorSelection | undefined {
+  if (!sel || deltas.length === 0) return sel;
+  const shift = (pos: number) =>
+    pos + deltas.reduce((sum, d) => (d.at <= pos ? sum + d.delta : sum), 0);
+  return EditorSelection.create(
+    sel.ranges.map((r) => EditorSelection.range(shift(r.anchor), shift(r.head))),
+    sel.mainIndex,
+  );
+}
+
 export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle?: InlineRefStyle }): Extension {
   const structureLocked = opts?.structureLocked ?? true;
   const inlineRefStyle = opts?.inlineRefStyle ?? "attribute-block";
@@ -245,8 +258,9 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
       const inlineDels = inlineDelimiterRanges(findInlineMarks(startDoc));
       let rewritten = false;
       const pieces: { from: number; to: number; insert: string }[] = [];
+      const deltas: { at: number; delta: number }[] = [];
 
-      tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+      tr.changes.iterChanges((fromA, toA, _fromB, toB, inserted) => {
         let from = fromA;
         let to = toA;
         for (const mk of [...markers, ...pairs, ...comments, ...chips, ...inlineDels]) {
@@ -261,6 +275,9 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
         const raw = inserted.toString();
         const insert = escapeMarkdown(raw);
         if (insert !== raw) rewritten = true;
+        if (from === fromA && to === toA && insert.length !== raw.length) {
+          deltas.push({ at: toB, delta: insert.length - raw.length });
+        }
         pieces.push({ from, to, insert });
       });
 
@@ -268,7 +285,7 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
       const userEvent = tr.annotation(Transaction.userEvent);
       return {
         changes: pieces,
-        selection: tr.selection,
+        selection: shiftSelection(tr.selection, deltas),
         filter: false,
         annotations: userEvent ? [Transaction.userEvent.of(userEvent)] : undefined,
       };
