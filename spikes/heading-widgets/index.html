@@ -31,13 +31,30 @@
         <input type="checkbox" name="mode" value="late" />
         3 · Late hydrate (+ microtask + requestMeasure)
       </label>
+      <label>
+        <input type="checkbox" name="mode" value="protected" />
+        4 · Protected heading (non-editable, del/backspace no-op, replace-through)
+      </label>
+      <label>
+        <input type="checkbox" id="opt-source" checked />
+        Source pane (live sync)
+      </label>
       <button type="button" id="btn-rebuild">Rebuild</button>
       <button type="button" id="btn-navigate">navigateTo last section</button>
       <button type="button" id="btn-reset">Reset metrics</button>
     </div>
 
     <div class="layout">
-      <div id="editor-host"></div>
+      <div class="panes">
+        <div class="pane">
+          <div class="pane-label">wysiwyg</div>
+          <div id="editor-host"></div>
+        </div>
+        <div class="pane" id="source-pane">
+          <div class="pane-label">source (live sync)</div>
+          <div id="source-host"></div>
+        </div>
+      </div>
       <pre id="overlay">mounting…</pre>
     </div>
 
@@ -45,6 +62,9 @@
       Fail: layout shift or scrollTop/widget-height jump while only scrolling.
       Pass: scroll is monotone; painted widget height equals <code>estimatedHeight</code>.
       Collapsible chrome ≠ body fold.
+      Ctrl/Cmd+F opens find, Ctrl/Cmd+R opens find+replace (Enter = next, Shift+Enter = previous, Esc = close).
+      Drag a pane's bottom-right corner to resize it.
+      Modes 1/3 and 4 are mutually exclusive (both decorate the heading line; combined they double-render it).
     </p>
 
     <script src="./dist/bundle.js"></script>

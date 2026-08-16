@@ -3,10 +3,12 @@
  * Port 4176 — does not touch harness/ (:4173).
  */
 
-import type { Extension } from "@codemirror/state";
+import type { Extension, StateField } from "@codemirror/state";
 import { EditorView, ViewPlugin } from "@codemirror/view";
 import {
   createSession,
+  setProtectedActiveMatch,
+  type ProtectedRange,
   type Session,
   type StructureSchema,
   type ViewHandle,
@@ -19,6 +21,8 @@ import {
   SLOT_EXPANDED,
   type SlotMode,
 } from "./widgets.js";
+import { findReplacePanel, type FindReplaceController } from "../../recipes/find-panel.js";
+import { protectedHeadingExtension } from "../../recipes/protected-heading-widget.js";
 
 const SCHEMA: StructureSchema = {
   levels: [
@@ -76,19 +80,75 @@ function emptyMetrics(): Metrics {
 
 let session: Session | null = null;
 let view: ViewHandle | null = null;
+let sourceView: ViewHandle | null = null;
 let metrics = emptyMetrics();
 let scrolling = false;
 let pendingMeasureSnap: { scrollTop: number; heights: number[] } | null = null;
+let protectedRangesField: StateField<ProtectedRange[]> | null = null;
+let currentFindHit: { id: string; from: number; to: number } | null = null;
+
+/**
+ * Bridges the generic find/replace panel to the session's ViewHandle (recipe).
+ * Native EditorSelection already renders find hits visibly for ordinary prose;
+ * for hits inside a protected heading (DOM-replaced by a widget) it also pushes
+ * `setProtectedActiveMatch` so the widget can render its own highlight instead.
+ */
+/** `editorView()` is harness/test-only (see session.ts) — not on the public `ViewHandle`. */
+function currentEditorView(): EditorView | null {
+  return (view as unknown as { editorView(): EditorView | null } | null)?.editorView() ?? null;
+}
+
+function syncProtectedHighlight(hit: { from: number; to: number } | null): void {
+  const ev = currentEditorView();
+  if (!ev || !protectedRangesField) return;
+  const ranges = ev.state.field(protectedRangesField);
+  const local = hit && ranges.some((r: ProtectedRange) => hit.from >= r.from && hit.to <= r.to) ? hit : null;
+  ev.dispatch({ effects: setProtectedActiveMatch.of(local) });
+}
+
+const findController: FindReplaceController = {
+  find(query) {
+    const hits = view?.find(query, { mode: "document" }) ?? [];
+    currentFindHit = hits[0] ?? null;
+    syncProtectedHighlight(currentFindHit);
+  },
+  findNext() {
+    currentFindHit = view?.findNext() ?? null;
+    syncProtectedHighlight(currentFindHit);
+  },
+  findPrev() {
+    currentFindHit = view?.findPrev() ?? null;
+    syncProtectedHighlight(currentFindHit);
+  },
+  replaceCurrent(text) {
+    if (!currentFindHit) return;
+    view?.replace(currentFindHit.id, text);
+    currentFindHit = view?.findNext() ?? null;
+    syncProtectedHighlight(currentFindHit);
+  },
+  replaceAll(text) {
+    view?.replaceAll(text);
+    currentFindHit = null;
+    syncProtectedHighlight(null);
+  },
+};
 
 const overlay = () => document.getElementById("overlay")!;
 
-function selectedModes(): { collapsible: boolean; native: boolean; late: boolean; correct: boolean } {
+function selectedModes(): {
+  collapsible: boolean;
+  native: boolean;
+  late: boolean;
+  correct: boolean;
+  protected: boolean;
+} {
   const boxes = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="mode"]'));
   const on = new Set(boxes.filter((b) => b.checked).map((b) => b.value));
   return {
     collapsible: on.has("collapsible"),
     native: on.has("native"),
     late: on.has("late"),
+    protected: on.has("protected"),
     correct: (document.getElementById("opt-correct") as HTMLInputElement).checked,
   };
 }
@@ -217,9 +277,13 @@ function instrumentationPlugin(): Extension {
 function destroy(): void {
   view?.destroy();
   view = null;
+  sourceView?.destroy();
+  sourceView = null;
   session = null;
   const host = document.getElementById("editor-host");
   if (host) host.replaceChildren();
+  const sourceHost = document.getElementById("source-host");
+  if (sourceHost) sourceHost.replaceChildren();
 }
 
 function rebuild(): void {
@@ -243,6 +307,15 @@ function rebuild(): void {
   if (m.collapsible || m.late) {
     wys.push(collapsibleHeadingExtension(SCHEMA, mode));
   }
+  if (m.protected) {
+    const { extension, rangesField } = protectedHeadingExtension(SCHEMA);
+    wys.push(extension);
+    protectedRangesField = rangesField;
+  } else {
+    protectedRangesField = null;
+  }
+  currentFindHit = null;
+  wys.push(findReplacePanel(findController));
   presentationExtensions.wysiwyg = wys;
 
   view = session.createView({
@@ -253,6 +326,17 @@ function rebuild(): void {
 
   const host = document.getElementById("editor-host")!;
   view.mount(host);
+
+  const showSource = (document.getElementById("opt-source") as HTMLInputElement).checked;
+  document.getElementById("source-pane")!.classList.toggle("hidden", !showSource);
+  if (showSource) {
+    // Same session as `view` — no manual sync needed, both views share one document (I2).
+    sourceView = session.createView({
+      scope: { nodeId: "root", include: "subtree" },
+      presentation: "source",
+    });
+    sourceView.mount(document.getElementById("source-host")!);
+  }
 
   const port = view.scrollPort;
   if (port) {
@@ -321,8 +405,33 @@ document.getElementById("btn-navigate")!.addEventListener("click", () => {
   metrics.notes.push(`navigateTo n${SECTION_COUNT - 1}`);
   renderOverlay();
 });
-for (const el of Array.from(document.querySelectorAll("input[name=mode], #opt-correct"))) {
-  el.addEventListener("change", () => rebuild());
+/**
+ * Modes 1/3 (collapsible/late) and 4 (protected) both decorate `node.heading`.
+ * Combined, the collapsible chrome renders after the heading while "protected"
+ * replaces it — the heading line then shows up twice (editable text + box),
+ * which reads as "the widget didn't protect anything". Keep them exclusive.
+ */
+function enforceModeExclusivity(changed: HTMLInputElement): void {
+  const collapsibleLike = Array.from(
+    document.querySelectorAll<HTMLInputElement>(
+      'input[name="mode"][value="collapsible"], input[name="mode"][value="late"]',
+    ),
+  );
+  const protectedBox = document.querySelector<HTMLInputElement>('input[name="mode"][value="protected"]')!;
+  if (changed === protectedBox && protectedBox.checked) {
+    for (const el of collapsibleLike) el.checked = false;
+  } else if (changed !== protectedBox && changed.checked) {
+    protectedBox.checked = false;
+  }
+}
+
+for (const el of Array.from(
+  document.querySelectorAll<HTMLInputElement>("input[name=mode], #opt-correct, #opt-source"),
+)) {
+  el.addEventListener("change", () => {
+    if (el.name === "mode") enforceModeExclusivity(el);
+    rebuild();
+  });
 }
 
 setupLayoutShiftObserver();

@@ -14,6 +14,24 @@ export function createTimeline(): Timeline {
   return createTimelineImpl();
 }
 
+/**
+ * Protected-range widget building blocks (non-editable, non-deletable widgets).
+ * Hosts supply the range computation and the `WidgetType`; this wires up
+ * display, atomicity, and deletion protection — kept in `src/` (unlike
+ * presentation-layer recipes, see recipes/README.md) because it must
+ * interoperate with the session's own transaction guards.
+ */
+export {
+  protectedActiveMatchField,
+  protectedAtomicField,
+  protectedDecorationField,
+  protectedWidgetExtension,
+  preventProtectedDeletionFilter,
+  setProtectedActiveMatch,
+  type ProtectedRange,
+  type ProtectedWidgetFactory,
+} from "./view/widgets/protected.js";
+
 export type {
   CoordRect,
   CreateSessionOptions,
