@@ -11,6 +11,9 @@ import { findInlineMarks, inlineDelimiterRanges } from "../../core/inline-marker
 import { projectTree } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
+import { chipAtomForDelete } from "./chips.js";
+
+export { chipAtomForDelete, isExactChipDelete } from "./chips.js";
 
 export const frontmatterWriteAnnotation = Annotation.define<boolean>();
 
@@ -115,9 +118,15 @@ export function inlineAtomForDelete(
   return dels.find((mk) => (head >= mk.from && head < mk.to) || head === mk.from);
 }
 
-export function wysiwygForwardDelete(doc: string, head: number): { from: number; to: number } | undefined {
+export function wysiwygForwardDelete(
+  doc: string,
+  head: number,
+  style: InlineRefStyle = "attribute-block",
+): { from: number; to: number } | undefined {
   const atom = headingAtomForDelete(doc, head, "forward");
   if (atom) return atom;
+  const chip = chipAtomForDelete(doc, head, "forward", style);
+  if (chip) return chip;
   const inline = inlineAtomForDelete(doc, head, "forward");
   if (inline) return inline;
   if (head < doc.length && doc[head] === "\n") return { from: head, to: head + 1 };
@@ -159,6 +168,15 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
               });
               return true;
             }
+            const chip = chipAtomForDelete(doc, sel.head, "backward", inlineRefStyle);
+            if (chip) {
+              view.dispatch({
+                changes: { from: chip.from, to: chip.to, insert: "" },
+                selection: EditorSelection.cursor(chip.from),
+                userEvent: "delete.backward",
+              });
+              return true;
+            }
             const inline = inlineAtomForDelete(doc, sel.head, "backward");
             if (!inline) return false;
             view.dispatch({
@@ -175,7 +193,7 @@ export function wysiwygGuards(opts?: { structureLocked?: boolean; inlineRefStyle
             const sel = view.state.selection.main;
             if (!sel.empty) return false;
             const doc = view.state.doc.toString();
-            const range = wysiwygForwardDelete(doc, sel.head);
+            const range = wysiwygForwardDelete(doc, sel.head, inlineRefStyle);
             if (!range) return false;
             const markers = headingMarkers(doc);
             const isMarker = markers.some((mk) => mk.from === range.from && mk.to === range.to);

@@ -4,6 +4,7 @@
     "createSession",
     "createTimeline",
     "findChips",
+    "isExactChipDelete",
     "ChipSpan",
     "CoordRect",
     "CreateSessionOptions",
