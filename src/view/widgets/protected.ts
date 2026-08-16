@@ -18,6 +18,7 @@ import {
   type Extension,
 } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet, type WidgetType } from "@codemirror/view";
+import { extraLockedRanges } from "../guards/locked-ranges.js";
 
 export interface ProtectedRange {
   from: number;
@@ -134,5 +135,6 @@ export function protectedWidgetExtension(
     protectedDecorationField(rangesField, widgetFor),
     protectedAtomicField(rangesField),
     preventProtectedDeletionFilter(rangesField),
+    extraLockedRanges.compute([rangesField], (state) => state.field(rangesField)),
   ];
 }

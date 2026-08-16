@@ -211,18 +211,28 @@ export class SyncEngine {
     if (tr.docChanged) this.afterDocument?.(tr.changes, null, docBefore);
   }
 
-  reconfigure(id: ViewId, chrome: Extension): void {
+  reconfigure(id: ViewId, chrome: Extension, park?: (state: EditorState) => EditorSelection): void {
     const slot = this.require(id);
     const tr = slot.state.update({
       effects: slot.compartment.reconfigure(chrome),
       filter: false,
       annotations: [Transaction.addToHistory.of(false)],
     });
+    const parked = park?.(tr.state);
+    const parkTr =
+      parked && !parked.eq(tr.state.selection)
+        ? tr.state.update({
+            selection: parked,
+            filter: false,
+            annotations: [Transaction.addToHistory.of(false)],
+          })
+        : null;
+    const trs = parkTr ? [tr, parkTr] : [tr];
     if (slot.view) {
-      slot.view.update([tr]);
+      slot.view.update(trs);
       slot.state = slot.view.state;
     } else {
-      slot.state = tr.state;
+      slot.state = parkTr ? parkTr.state : tr.state;
     }
   }
 

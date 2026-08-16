@@ -2,7 +2,7 @@
  * Session: one document, one timeline, many views (SPEC.md § 3, § 7.3, § 11, § 12).
  */
 
-import { EditorSelection, Transaction, type Extension } from "@codemirror/state";
+import { EditorSelection, EditorState, Transaction, type Extension } from "@codemirror/state";
 import { Compartment } from "@codemirror/state";
 import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import { EditorView, keymap } from "@codemirror/view";
@@ -33,6 +33,7 @@ import {
   setFindHighlights,
   setFindQuery,
 } from "./view/find-decorations.js";
+import { parkSelectionInState } from "./view/guards/park-selection.js";
 import { frontmatterLockFilter, wysiwygGuards } from "./view/guards/wysiwyg.js";
 import {
   headingStampField,
@@ -535,7 +536,11 @@ export class Session implements PublicSession {
         frontmatterWriteFacet.of({
           write: (blockFrom, key, value) => this.writeFrontmatterField(blockFrom, key, value),
         }),
-        wysiwygGuards({ structureLocked: locked, inlineRefStyle: this.policy.inlineRefStyle }),
+        wysiwygGuards({
+          structureLocked: locked,
+          inlineRefStyle: this.policy.inlineRefStyle,
+          schema: this.schema,
+        }),
         headingStampField(
           slot.rangeField,
           this.schema,
@@ -639,7 +644,15 @@ export class Session implements PublicSession {
   }
 
   private refreshChrome(slot: ViewSlot): void {
-    this.sync.reconfigure(slot.id, this.chrome(slot));
+    const park =
+      slot.presentation === "wysiwyg"
+        ? (state: EditorState) =>
+            parkSelectionInState(state, {
+              inlineRefStyle: this.policy.inlineRefStyle,
+              schema: this.schema,
+            })
+        : undefined;
+    this.sync.reconfigure(slot.id, this.chrome(slot), park);
   }
 
   private makeHandle(id: string): ViewHandle {
