@@ -40,6 +40,7 @@ export { blockIndexAtOffset, bodyBlockStarts } from "./core/block-offsets.js";
 export { unfoldOverlappingFolds } from "./view/unfold.js";
 export { paddedVisibleRanges } from "./view/viewport.js";
 export { intervalsOverlap, scrollElementIntoViewIfNeeded } from "./view/scrollport.js";
+export { wysiwygGuards } from "./view/guards/wysiwyg.js";
 
 export type {
   CoordRect,
