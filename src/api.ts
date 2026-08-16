@@ -10,7 +10,7 @@ import type { StructureAction } from "./core/structure.js";
 import type { ForeignTimelineCommand } from "./core/timeline.js";
 import type { ResolvedTrackedPosition, TrackedPositionId } from "./core/tracked-position.js";
 import type { Range, StructureSchema, Tree } from "./core/types.js";
-import type { PluginContribution, PluginSlot } from "./view/plugin-registry.js";
+import type { PluginContribution } from "./view/plugin-registry.js";
 import type { IncludeMode, Presentation } from "./view/presentation.js";
 
 export type { Range, StructureLevel, StructureSchema, Tree, TreeNode } from "./core/types.js";
