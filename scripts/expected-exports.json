@@ -12,6 +12,8 @@
     "blockIndexAtOffset",
     "unfoldOverlappingFolds",
     "paddedVisibleRanges",
+    "intervalsOverlap",
+    "scrollElementIntoViewIfNeeded",
     "ChipSpan",
     "CoordRect",
     "CreateSessionOptions",

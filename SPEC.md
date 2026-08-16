@@ -825,6 +825,7 @@ Deckung.
 | `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
 | `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
 | `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
+| `intervalsOverlap(a, b)` · `scrollElementIntoViewIfNeeded(el, opts?, port?)` | rein / DOM — vertikale Sichtbarkeit im Scrollport (G9). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
@@ -908,6 +909,7 @@ nur Geometrie:
 | **G6** | Ungemountet: `coords` → `null`, `scrollPort` → `null`. Kein Throw. |
 | **G7** | Hosts rufen `coords` **nicht** während eines Dispatch/Update-Zyklus auf (T13). Messung gehört in den Mess-/Scroll-Zyklus oder Host-`requestAnimationFrame`. |
 | **G8** | `paddedVisibleRanges(view, pad?)` erweitert jedes `visibleRanges`-Intervall um `pad` (Default 500) und klemmt auf `[0, doc.length]`, damit Viewport-Scanner am Rand nicht abschneiden. |
+| **G9** | Ein Kasten gilt im Scrollport als sichtbar genau dann, wenn die **vertikalen** Intervalle strikt überlappen: `box.bottom > port.top` und `box.top < port.bottom`. Kantenberührung zählt nicht. Die horizontale Lage ändert das nicht. Ist der Kasten schon sichtbar, wird nicht gescrollt (I4). |
 
 Papierbogen, angepinnte Heading und Gutter-UI sind **Host-Chrome**, kein Teil dieser API.
 

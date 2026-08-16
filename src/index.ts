@@ -39,6 +39,7 @@ export { insertListPrefix, setHeadingLevel, toggleWrapSelection } from "./view/c
 export { blockIndexAtOffset, bodyBlockStarts } from "./core/block-offsets.js";
 export { unfoldOverlappingFolds } from "./view/unfold.js";
 export { paddedVisibleRanges } from "./view/viewport.js";
+export { intervalsOverlap, scrollElementIntoViewIfNeeded } from "./view/scrollport.js";
 
 export type {
   CoordRect,
