@@ -155,6 +155,7 @@ Komponente kennt keinen Pin. In `source` ist die Option wirkungslos.
 | **SNH2** | `showNodeHeading: false` in `wysiwyg`: die Heading-Range des Scope-Knotens (`TreeNode.heading`, inkl. folgendem Newline) ist ausgeblendet und nicht per Caret erreichbar. Kind-Überschriften im Ausschnitt bleiben sichtbar und editierbar. |
 | **SNH3** | `setScope` / `setShowNodeHeading` aktualisieren die Ausblendung ohne Remount und ohne Timeline-Eintrag (wie `setGrain`). |
 | **SNH4** | Die ausgeblendete Scope-Überschrift nimmt an der Wysiwyg-Suche nicht teil (F4); in `source` bleibt sie suchbar (F5). |
+| **V11** | Der Scroll-Anker zwischen Presentations ist ein Dokument-Offset, nie ein Pixelwert (V3). `bodyBlockStarts` liefert die Start-Offsets der sichtbaren Rumpf-Blöcke nach Überschrift und angrenzendem Frontmatter; HTML-Kommentare sind keine Blöcke. `blockIndexAtOffset` mappt eine Position auf den letzten Start bei oder vor ihr, oder −1 wenn die Position vor dem ersten Block liegt. |
 
 ### 3.4 TrackedPosition
 
@@ -820,6 +821,7 @@ Deckung.
 | `findChips(doc, from?, to?, style?)` | rein — Chip-Spans für `attribute-block` / `html-ref` (I6, § 8.3). Eine Scanner-Stelle für Host und Komponente. |
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
 | `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
+| `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion

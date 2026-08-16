@@ -8,6 +8,8 @@
     "setHeadingLevel",
     "insertListPrefix",
     "toggleWrapSelection",
+    "bodyBlockStarts",
+    "blockIndexAtOffset",
     "ChipSpan",
     "CoordRect",
     "CreateSessionOptions",
