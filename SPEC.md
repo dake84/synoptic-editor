@@ -417,6 +417,7 @@ Dispatch auslösen.
 | **L4** | Überschriftentext bleibt in `wysiwyg` editierbar, unabhängig von `policy.structureEditingInWysiwyg` — **außer** der Scope-Überschrift, wenn `showNodeHeading: false` (SNH2): die ist ausgeblendet und nicht erreichbar. |
 | **L5** | Programmatische Änderungen umgehen die Sperren gezielt (Widgets, API, Undo). |
 | **L6** | Sperrdefinition an genau einer Stelle (I6). |
+| **L7** | Ändert sich die Presentation oder die Menge der gesperrten Bereiche, wird die Selektion **in einem Schritt** aus neu gesperrten Bereichen geparkt: Anker und Kopf je auf die nächstgelegene erreichbare Position außerhalb der Sperre. Ohne Timeline-Eintrag, ohne Scroll (I4), ohne Nachlauf (I5). Eine in `source` gültige Selektion darf in `wysiwyg` nicht in Chrome stehen bleiben. Gilt für alle Sperren derselben Menge — eigene wie host-beigesteuerte (`ProtectedRange`, § 12). Ein Ort (L6). |
 
 ### 8.2 Frontmatter
 
