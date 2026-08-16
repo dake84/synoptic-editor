@@ -11,6 +11,7 @@
     "bodyBlockStarts",
     "blockIndexAtOffset",
     "unfoldOverlappingFolds",
+    "paddedVisibleRanges",
     "ChipSpan",
     "CoordRect",
     "CreateSessionOptions",

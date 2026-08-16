@@ -824,6 +824,7 @@ Deckung.
 | `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
 | `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
 | `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
+| `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
@@ -906,6 +907,7 @@ nur Geometrie:
 | **G5** | `scrollPort` ist das Element, das scrollt (I4). Overlay-Wurzeln hängen der Host dort ein. |
 | **G6** | Ungemountet: `coords` → `null`, `scrollPort` → `null`. Kein Throw. |
 | **G7** | Hosts rufen `coords` **nicht** während eines Dispatch/Update-Zyklus auf (T13). Messung gehört in den Mess-/Scroll-Zyklus oder Host-`requestAnimationFrame`. |
+| **G8** | `paddedVisibleRanges(view, pad?)` erweitert jedes `visibleRanges`-Intervall um `pad` (Default 500) und klemmt auf `[0, doc.length]`, damit Viewport-Scanner am Rand nicht abschneiden. |
 
 Papierbogen, angepinnte Heading und Gutter-UI sind **Host-Chrome**, kein Teil dieser API.
 
