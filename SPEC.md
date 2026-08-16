@@ -650,6 +650,7 @@ ein Modus mit einem Parameter:
 | **F2** | Globale Suche findet über die eigene Range hinaus; der Übergang zu einem Treffer außerhalb folgt U5. |
 | **F3** | Trefferliste und aktiver Treffer gehören zur View. Zwei Views können gleichzeitig in unterschiedlichen Modi suchen. |
 | **F10** | `findNext` / `findPrev` (Tasten **F3** / **Shift+F3**) wechseln nur den **aktiven Treffer** der bestehenden Liste — keine neue Projektion. Am Ende der Liste wird gewrappt. Aufdecken folgt dem Modus der Liste (F1/F2). |
+| **F11** | Bevor ein Treffer aufgedeckt wird, werden alle Folds aufgehoben, die den Trefferbereich überlappen. Ein Dispatch, kein Warten (I5). Ohne überlappenden Fold ist der Aufruf ein No-Op. |
 
 ### 10.2 Projektion
 
@@ -822,6 +823,7 @@ Deckung.
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
 | `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
 | `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
+| `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion

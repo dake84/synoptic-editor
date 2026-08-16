@@ -68,7 +68,7 @@ scripts/
 ## 2 · Regel-Ids an Tests binden
 
 Der wichtigste Mechanismus. `SPEC.md` vergibt Ids: `I1–I10`, `TP1–TP8`, `V1–V10`,
-`S1–S3`, `R1–R7`, `U1–U16`, `D1–D5`, `L1–L6`, `FM1–FM7`, `W1–W6`, `P1–P5`, `F1–F10`,
+`S1–S3`, `R1–R7`, `U1–U16`, `D1–D5`, `L1–L6`, `FM1–FM7`, `W1–W6`, `P1–P5`, `F1–F11`,
 `RP1–RP7`, `B1–B4`, `G1a/G1b`, `G2–G3`, `EX1–EX5`, `H1`, `IM1–IM4`, `C1–C3`.
 
 Jeder Test annotiert, welche Regeln er abdeckt:

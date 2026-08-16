@@ -37,6 +37,7 @@ export type { ChipSpan } from "./core/chips.js";
 export { isExactChipDelete } from "./view/guards/chips.js";
 export { insertListPrefix, setHeadingLevel, toggleWrapSelection } from "./view/commands.js";
 export { blockIndexAtOffset, bodyBlockStarts } from "./core/block-offsets.js";
+export { unfoldOverlappingFolds } from "./view/unfold.js";
 
 export type {
   CoordRect,
