@@ -5,7 +5,7 @@
 
 import type { Extension } from "@codemirror/state";
 import type { InlineRefStyle } from "./core/chips.js";
-import type { SearchHit, SearchHitClass } from "./core/search.js";
+import type { SearchHit, SearchHitClass, FindMatchOptions } from "./core/search.js";
 import type { StructureAction } from "./core/structure.js";
 import type { ForeignTimelineCommand } from "./core/timeline.js";
 import type { ResolvedTrackedPosition, TrackedPositionId } from "./core/tracked-position.js";
@@ -14,7 +14,7 @@ import type { PluginContribution } from "./view/plugin-registry.js";
 import type { IncludeMode, Presentation } from "./view/presentation.js";
 
 export type { Range, StructureLevel, StructureSchema, Tree, TreeNode } from "./core/types.js";
-export type { SearchHit, SearchHitClass } from "./core/search.js";
+export type { SearchHit, SearchHitClass, FindMatchOptions } from "./core/search.js";
 export type { StructureAction } from "./core/structure.js";
 export type { TrackedPositionId, ResolvedTrackedPosition } from "./core/tracked-position.js";
 export type { IncludeMode, Presentation } from "./view/presentation.js";
@@ -151,7 +151,10 @@ export interface ViewHandle {
   /** Scroll owner element (I4), or null when unmounted (G5 / G6). */
   readonly scrollPort: HTMLElement | null;
   readonly visibleNode: string | null;
-  find(query: string, opts: { mode: "view" | "document"; activate?: boolean }): SearchHit[];
+  find(
+    query: string,
+    opts: { mode: "view" | "document"; activate?: boolean } & FindMatchOptions,
+  ): SearchHit[];
   findNext(): SearchHit | null;
   findPrev(): SearchHit | null;
   replace(hitId: string, text: string): void;

@@ -662,6 +662,12 @@ ein Modus mit einem Parameter:
 | **F3** | Trefferliste und aktiver Treffer gehören zur View. Zwei Views können gleichzeitig in unterschiedlichen Modi suchen. |
 | **F10** | `findNext` / `findPrev` (Tasten **F3** / **Shift+F3**) wechseln nur den **aktiven Treffer** der bestehenden Liste — keine neue Projektion. Am Ende der Liste wird gewrappt. Aufdecken folgt dem Modus der Liste (F1/F2). |
 | **F11** | Bevor ein Treffer aufgedeckt wird, werden alle Folds aufgehoben, die den Trefferbereich überlappen. Ein Dispatch, kein Warten (I5). Ohne überlappenden Fold ist der Aufruf ein No-Op. |
+| **F12** | Die Suche beachtet standardmäßig die Groß-/Kleinschreibung **nicht**. `caseSensitive: true` verlangt exakte Groß-/Kleinschreibung. Gilt für Literal und Regex. |
+| **F13** | `regex: false` (Default) sucht den Query-String **literal**, auch wenn er Regex-Metazeichen enthält. `regex: true` interpretiert die Query als JavaScript-Regulären-Ausdruck (`u`-Flag). Ein ungültiges Muster liefert eine leere Trefferliste, keinen Wurf. |
+
+Hosts dürfen dieselbe Query gegen viele Dokumente laufen lassen; die Einheit ist
+`findInDocument` (ein Document, eine Projektion). Die Komponente orchestriert keine
+workspace-übergreifende Suche.
 
 ### 10.2 Projektion
 
@@ -834,6 +840,7 @@ Deckung.
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
 | `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
 | `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
+| `findInDocument(doc, opts)` | rein — Trefferliste eines Documents (§ 10). `opts` trägt Presentation, Range, Schema und `FindMatchOptions` (`caseSensitive`, `regex`). |
 | `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
 | `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
 | `intervalsOverlap(a, b)` · `scrollElementIntoViewIfNeeded(el, opts?, port?)` | rein / DOM — vertikale Sichtbarkeit im Scrollport (G9). |
@@ -895,7 +902,7 @@ steht.
 | `view.coords(from, to)` | lesend — Box relativ zum Scrollport (§ 12.1); `null` wenn ungemountet oder Position ungültig |
 | `view.scrollPort` | lesend — Scroll-Owner-Element (I4) oder `null` wenn ungemountet |
 | `view.visibleNode` | lesend |
-| `view.find(query, { mode: 'view' \| 'document', activate?: boolean })` | Kommando (§ 10.1) → `SearchHit[]`. `activate: false` malt Treffer ohne Scroll/Selektion (Suchleiste beim Tippen). |
+| `view.find(query, { mode: 'view' \| 'document', activate?: boolean, caseSensitive?: boolean, regex?: boolean })` | Kommando (§ 10.1) → `SearchHit[]`. `activate: false` malt Treffer ohne Scroll/Selektion (Suchleiste beim Tippen). Default: nicht case-sensitive, literal (F12/F13). |
 | `view.findNext()` · `view.findPrev()` | Kommando — aktiver Treffer (F3/F10) → `SearchHit \| null` |
 | `view.replace(hitId, text)` · `view.replaceAll(text, { classes })` | Kommando (§ 10.3) |
 | `view.focus()` | Kommando |
@@ -1198,7 +1205,9 @@ darf auf Zeit warten (I5).
 | **T129** | `*kursiv*` / `**fett**` in `wysiwyg`: Delimiter unsichtbar und atomar; Innen trägt `syn-em` / `syn-strong`; Document behält die Marker (IM1/I9). |
 | **T130** | Suche nach `*` oder `**` trifft in `wysiwyg` keine Emphasis-/Strong-Delimiter; Suche nach dem Innen-Text trifft (IM4/F4). In `source` sind die Marker suchbar (F5). |
 | **T131** | `~~x~~` und `` `code` ``: gleiche Hide+Mark-Regel; Code-Span bricht Emphasis darin (IM1/IM2). |
-| **T132** | `\*literal\*` in `wysiwyg`: Backslash hide (L2); die `*` sind keine Delimiter und bleiben sichtbar (IM3). |
+| T132 | `\*literal\*` in `wysiwyg`: Backslash hide (L2); die `*` sind keine Delimiter und bleiben sichtbar (IM3). |
+| **T145** | Query `ARIA` trifft `aria` (Default); mit `caseSensitive: true` nicht (F12). |
+| **T146** | `regex: true`, Query `a.ia` trifft `aria`; dieselbe Query literal nicht. Ungültiges Muster `[` → leere Liste (F13). |
 
 ### Ersetzen
 

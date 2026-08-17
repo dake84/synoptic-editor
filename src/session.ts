@@ -108,6 +108,7 @@ interface ViewSlot {
   findHits: SearchHit[];
   findQuery: string;
   findMode: "view" | "document";
+  findMatch: { caseSensitive: boolean; regex: boolean };
   findActive: number;
   rangeField: ReturnType<typeof createScopeRangeField>;
   compartment: Compartment;
@@ -444,6 +445,7 @@ export class Session implements PublicSession {
       findHits: [],
       findQuery: "",
       findMode: "view",
+      findMatch: { caseSensitive: false, regex: false },
       findActive: -1,
       rangeField: createScopeRangeField({ from: 0, to: 0, lost: false }),
       compartment: new Compartment(),
@@ -830,12 +832,14 @@ export class Session implements PublicSession {
       get visibleNode() {
         return session.views.get(id)?.visibleNode ?? null;
       },
-      find(query: string, opts: { mode: "view" | "document"; activate?: boolean }) {
+      find(query: string, opts: { mode: "view" | "document"; activate?: boolean; caseSensitive?: boolean; regex?: boolean }) {
         const slot = session.requireSlot(id);
         const range =
           opts.mode === "view"
             ? viewRange(session.sync.getState(id))
             : { from: 0, to: session.document.length, lost: false };
+        const caseSensitive = Boolean(opts.caseSensitive);
+        const regex = Boolean(opts.regex);
         const hits = findInDocument(session.document, {
           query,
           range: { from: range.from, to: range.to },
@@ -846,10 +850,13 @@ export class Session implements PublicSession {
           tree: session.treeState,
           hideHeadingNodeId:
             slot.presentation === "wysiwyg" && !slot.showNodeHeading ? slot.scope.nodeId : undefined,
+          caseSensitive,
+          regex,
         });
         slot.findHits = hits;
         slot.findQuery = query;
         slot.findMode = opts.mode;
+        slot.findMatch = { caseSensitive, regex };
         const activate = opts.activate !== false;
         slot.findActive = hits.length > 0 && activate ? 0 : -1;
         if (activate) {

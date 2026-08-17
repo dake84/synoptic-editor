@@ -58,6 +58,7 @@ export { parkSelectionInState } from "./view/guards/park-selection.js";
 export { projectTree, frontmatterRanges, paddedFrontmatterRanges, hiddenFrontmatterRanges, headingUnitRanges } from "./core/tree.js";
 export { findHtmlComments } from "./core/html-comments.js";
 export { findInlineMarks, inlineDelimiterRanges } from "./core/inline-markers.js";
+export { findInDocument } from "./core/search.js";
 
 export type {
   CoordRect,
@@ -76,6 +77,7 @@ export type {
   ResolvedTrackedPosition,
   SearchHit,
   SearchHitClass,
+  FindMatchOptions,
   Session,
   SessionEvent,
   StructureAction,
