@@ -5,6 +5,9 @@
 import type { CreateSessionOptions, Session, Timeline } from "./api.js";
 import { createTimeline as createTimelineImpl } from "./core/timeline.js";
 import { createSession as createSessionImpl } from "./session.js";
+import type { Extension } from "@codemirror/state";
+import { extraLockedGuards as extraLockedEditGuards } from "./view/guards/locked-ranges.js";
+import { extraLockedParkFilter } from "./view/guards/park-selection.js";
 
 export function createSession(opts: CreateSessionOptions): Session {
   return createSessionImpl(opts);
@@ -39,10 +42,20 @@ export { blockIndexAtOffset, bodyBlockStarts } from "./core/block-offsets.js";
 export { unfoldOverlappingFolds } from "./view/unfold.js";
 export { paddedVisibleRanges } from "./view/viewport.js";
 export { intervalsOverlap, scrollElementIntoViewIfNeeded } from "./view/scrollport.js";
-export { wysiwygGuards, headingMarkers, maskBackslashRanges } from "./view/guards/wysiwyg.js";
-export { extraLockedRanges } from "./view/guards/locked-ranges.js";
+export { wysiwygGuards, headingMarkers, maskBackslashRanges, frontmatterLockFilter } from "./view/guards/wysiwyg.js";
+export { structureJoinFilter } from "./view/guards/structure-join.js";
+export { headingUnitGuards, headingUnitAtBoundary } from "./view/guards/heading-units.js";
+export { hiddenFrontmatterGuards } from "./view/frontmatter-hide.js";
+export {
+  extraAtomicRanges,
+  extraLockedRanges,
+  hostWriteAnnotation,
+} from "./view/guards/locked-ranges.js";
+export function extraLockedGuards(): Extension {
+  return [extraLockedEditGuards(), extraLockedParkFilter()];
+}
 export { parkSelectionInState } from "./view/guards/park-selection.js";
-export { projectTree, frontmatterRanges } from "./core/tree.js";
+export { projectTree, frontmatterRanges, paddedFrontmatterRanges, hiddenFrontmatterRanges, headingUnitRanges } from "./core/tree.js";
 export { findHtmlComments } from "./core/html-comments.js";
 export { findInlineMarks, inlineDelimiterRanges } from "./core/inline-markers.js";
 

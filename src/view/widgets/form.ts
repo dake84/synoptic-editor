@@ -2,12 +2,16 @@
  * Frontmatter form / hide widgets (SPEC.md § 8.2, FM1–FM8).
  */
 
-import { Facet, RangeSetBuilder, StateField } from "@codemirror/state";
+import { Facet, RangeSetBuilder, StateField, type EditorState } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { parseFrontmatterBlock } from "../../core/frontmatter.js";
-import { projectTree } from "../../core/tree.js";
+import { hiddenFrontmatterRanges, projectTree } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import type { ScopeRange } from "../scope.js";
+import {
+  buildHiddenFrontmatterDecorations,
+  clipFrontmatterZones,
+} from "../frontmatter-hide.js";
 
 export type FrontmatterMode = "form" | "hidden";
 
@@ -111,29 +115,18 @@ function cssEscape(value: string): string {
   return typeof CSS !== "undefined" && CSS.escape ? CSS.escape(value) : value.replace(/"/g, '\\"');
 }
 
-class EmptyBlockWidget extends WidgetType {
-  override toDOM(): HTMLElement {
-    const el = document.createElement("span");
-    el.className = "syn-fm-hidden";
-    el.style.height = "0px";
-    el.style.display = "block";
-    return el;
-  }
-  override get estimatedHeight(): number {
-    return 0;
-  }
-  override eq(): boolean {
-    return true;
-  }
-}
-
 function buildFrontmatterDecos(
-  doc: string,
+  state: EditorState,
   range: ScopeRange,
   schema: StructureSchema,
   mode: FrontmatterMode,
 ): DecorationSet {
   if (range.lost) return Decoration.none;
+  const doc = state.doc.toString();
+  if (mode === "hidden") {
+    const zones = clipFrontmatterZones(hiddenFrontmatterRanges(doc, schema), range.from, range.to);
+    return buildHiddenFrontmatterDecorations(state, zones);
+  }
   const tree = projectTree(doc, schema);
   const builder = new RangeSetBuilder<Decoration>();
   const nodes = [...tree.nodes.values()]
@@ -145,20 +138,16 @@ function buildFrontmatterDecos(
     const from = Math.max(fm.from, range.from);
     const to = Math.min(fm.to, range.to);
     if (from >= to) continue;
-    if (mode === "hidden") {
-      builder.add(from, to, Decoration.replace({ widget: new EmptyBlockWidget(), block: true }));
-    } else {
-      const parsed = parseFrontmatterBlock(doc, fm);
-      const fields = parsed.fields.map((f) => ({ key: f.key, value: f.value }));
-      builder.add(
-        from,
-        to,
-        Decoration.replace({
-          widget: new FrontmatterFormWidget(fm.from, fields),
-          block: true,
-        }),
-      );
-    }
+    const parsed = parseFrontmatterBlock(doc, fm);
+    const fields = parsed.fields.map((f) => ({ key: f.key, value: f.value }));
+    builder.add(
+      from,
+      to,
+      Decoration.replace({
+        widget: new FrontmatterFormWidget(fm.from, fields),
+        block: true,
+      }),
+    );
   }
   return builder.finish();
 }
@@ -170,13 +159,13 @@ export function frontmatterField(
 ): StateField<DecorationSet> {
   return StateField.define<DecorationSet>({
     create(state) {
-      return buildFrontmatterDecos(state.doc.toString(), state.field(rangeField), schema, mode);
+      return buildFrontmatterDecos(state, state.field(rangeField), schema, mode);
     },
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
       if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
-      return buildFrontmatterDecos(tr.state.doc.toString(), r, schema, mode);
+      return buildFrontmatterDecos(tr.state, r, schema, mode);
     },
     provide: (field) => EditorView.decorations.from(field),
   });
@@ -209,14 +198,11 @@ function buildFmAtoms(
   atom: Decoration,
 ): DecorationSet {
   if (range.lost) return Decoration.none;
-  const tree = projectTree(doc, schema);
   const builder = new RangeSetBuilder<Decoration>();
-  for (const node of tree.nodes.values()) {
-    const fm = node.frontmatter;
-    if (!fm) continue;
-    if (fm.to <= range.from || fm.from >= range.to) continue;
-    const from = Math.max(fm.from, range.from);
-    const to = Math.min(fm.to, range.to);
+  for (const zone of hiddenFrontmatterRanges(doc, schema)) {
+    if (zone.to <= range.from || zone.from >= range.to) continue;
+    const from = Math.max(zone.from, range.from);
+    const to = Math.min(zone.to, range.to);
     if (from < to) builder.add(from, to, atom);
   }
   return builder.finish();

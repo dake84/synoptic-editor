@@ -188,8 +188,9 @@ describe("visual line map golden fixture", () => {
           "text": "---
       id: n0
       ---
+
       ",
-          "to": 15,
+          "to": 16,
         },
       ]
     `);

@@ -33,6 +33,7 @@ import {
   setFindHighlights,
   setFindQuery,
 } from "./view/find-decorations.js";
+import { headingUnitGuards } from "./view/guards/heading-units.js";
 import { parkSelectionInState } from "./view/guards/park-selection.js";
 import { frontmatterLockFilter, wysiwygGuards } from "./view/guards/wysiwyg.js";
 import {
@@ -75,6 +76,7 @@ export type { CreateSessionOptions, CreateViewOptions, Policy, SessionEvent };
 
 export interface ResolvedPolicy {
   structureEditingInWysiwyg: "locked" | "allowed";
+  headingEditingInWysiwyg: "inline" | "locked";
   frontmatterInWysiwyg: "form" | "hidden";
   pillFields: string[];
   inlineRefStyle: InlineRefStyle;
@@ -167,6 +169,7 @@ export class Session implements PublicSession {
     this.schema = opts.schema;
     this.policy = {
       structureEditingInWysiwyg: opts.policy?.structureEditingInWysiwyg ?? "locked",
+      headingEditingInWysiwyg: opts.policy?.headingEditingInWysiwyg ?? "inline",
       frontmatterInWysiwyg: opts.policy?.frontmatterInWysiwyg ?? "form",
       pillFields: opts.policy?.pillFields ?? [],
       inlineRefStyle: opts.policy?.inlineRefStyle ?? "attribute-block",
@@ -514,6 +517,7 @@ export class Session implements PublicSession {
 
   private chrome(slot: ViewSlot) {
     const locked = this.policy.structureEditingInWysiwyg === "locked";
+    const headingLocked = this.policy.headingEditingInWysiwyg === "locked";
     const host =
       slot.presentation === "wysiwyg"
         ? [...slot.hostExtensions, ...(slot.presentationExtensions.wysiwyg ?? [])]
@@ -531,15 +535,19 @@ export class Session implements PublicSession {
         chipAtomField(slot.rangeField, this.policy.inlineRefStyle),
         frontmatterField(slot.rangeField, this.schema, this.policy.frontmatterInWysiwyg),
         frontmatterAtomField(slot.rangeField, this.schema),
-        frontmatterLockFilter(this.schema),
+        frontmatterLockFilter(this.schema, { headingEditingLocked: headingLocked }),
         pillField(slot.rangeField, this.schema, this.policy.pillFields),
         frontmatterWriteFacet.of({
           write: (blockFrom, key, value) => this.writeFrontmatterField(blockFrom, key, value),
         }),
+        headingLocked
+          ? headingUnitGuards(this.schema)
+          : headingUnitGuards(this.schema, { editing: "inline" }),
         wysiwygGuards({
           structureLocked: locked,
           inlineRefStyle: this.policy.inlineRefStyle,
           schema: this.schema,
+          headingEditingLocked: headingLocked,
         }),
         headingStampField(
           slot.rangeField,

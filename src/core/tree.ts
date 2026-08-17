@@ -144,6 +144,15 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
   return out;
 }
 
+/** Line at `pos` — `to` is the line break (or EOF), matching CodeMirror `Line.to`. */
+function lineAtOffset(doc: string, pos: number): { from: number; to: number; text: string } {
+  const clamped = Math.max(0, Math.min(pos, doc.length));
+  const from = clamped === 0 ? 0 : doc.lastIndexOf("\n", clamped - 1) + 1;
+  const nl = doc.indexOf("\n", clamped);
+  const to = nl < 0 ? doc.length : nl;
+  return { from, to, text: doc.slice(from, to) };
+}
+
 /** YAML blocks bound to schema headings (FM1). Orphan fences are not ranges. */
 export function frontmatterRanges(doc: string, schema: StructureSchema): Range[] {
   const out: Range[] = [];
@@ -151,7 +160,73 @@ export function frontmatterRanges(doc: string, schema: StructureSchema): Range[]
     const fm = node.frontmatter;
     if (fm && fm.to > fm.from) out.push(fm);
   }
-  return out;
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/**
+ * Frontmatter fences plus surrounding blanks (FM2): the break after the
+ * preceding non-empty line, and trailing blanks up to the bound heading.
+ */
+export function paddedFrontmatterRanges(doc: string, schema: StructureSchema): Range[] {
+  return frontmatterRanges(doc, schema).map((range) => {
+    let from = range.from;
+    while (from > 0) {
+      const lineBefore = lineAtOffset(doc, from - 1);
+      if (lineBefore.text.trim().length > 0) {
+        from = lineBefore.to;
+        break;
+      }
+      from = lineBefore.from;
+    }
+
+    let to = range.to;
+    while (to < doc.length) {
+      const line = lineAtOffset(doc, to);
+      if (line.from === to) {
+        if (line.text.trim().length > 0) break;
+        to = Math.min(doc.length, line.to + (line.to < doc.length ? 1 : 0));
+        continue;
+      }
+      break;
+    }
+    return { from, to };
+  });
+}
+
+/**
+ * Hidden-mode frontmatter (FM9): opening fence through the bound heading,
+ * including glue blanks after the closing fence. Leading blanks before the
+ * fence stay visible prose (the gap after the previous heading).
+ */
+export function hiddenFrontmatterRanges(doc: string, schema: StructureSchema): Range[] {
+  const nodes = [...projectTree(doc, schema).nodes.values()];
+  const out: Range[] = [];
+  for (const node of nodes) {
+    const fm = node.frontmatter;
+    if (!fm) continue;
+    const from = fm.from;
+    const to = node.heading.from;
+    if (to > from) out.push({ from, to });
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/**
+ * Locked heading unit (LH1): YAML fence (if any) through the bound ATX line
+ * and its trailing newline. Leading blanks before the fence stay prose.
+ */
+export function headingUnitRanges(doc: string, schema: StructureSchema): Range[] {
+  const nodes = [...projectTree(doc, schema).nodes.values()].sort(
+    (a, b) => a.heading.from - b.heading.from,
+  );
+  const units: Range[] = [];
+  for (const node of nodes) {
+    const from = node.frontmatter?.from ?? node.heading.from;
+    let to = node.heading.to;
+    if (to < doc.length && doc[to] === "\n") to += 1;
+    if (to > from) units.push({ from, to });
+  }
+  return units;
 }
 
 /**

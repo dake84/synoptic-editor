@@ -24,6 +24,11 @@ export type { PluginContribution, PluginSlot } from "./view/plugin-registry.js";
 
 export interface Policy {
   structureEditingInWysiwyg?: "locked" | "allowed";
+  /**
+   * `inline` (default): heading title stays editable (L4).
+   * `locked`: schema heading + YAML fence are one atomic unit (LH1–LH3).
+   */
+  headingEditingInWysiwyg?: "inline" | "locked";
   frontmatterInWysiwyg?: "form" | "hidden";
   pillFields?: string[];
   inlineRefStyle?: InlineRefStyle;

@@ -8,36 +8,98 @@ import { EditorView, keymap } from "@codemirror/view";
 import { findChips, type InlineRefStyle } from "../../core/chips.js";
 import { findHtmlComments } from "../../core/html-comments.js";
 import { findInlineMarks, inlineDelimiterRanges } from "../../core/inline-markers.js";
-import { projectTree } from "../../core/tree.js";
+import { headingUnitRanges, hiddenFrontmatterRanges } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
+import { hostWriteAnnotation } from "./locked-ranges.js";
 import { chipAtomForDelete } from "./chips.js";
 import { headingMarkers, maskPairs } from "./markers.js";
 import { selectionParkFilter } from "./park-selection.js";
+import { structureJoinFilter } from "./structure-join.js";
 
 export { chipAtomForDelete, isExactChipDelete } from "./chips.js";
 export { headingMarkers, maskBackslashRanges, maskPairs } from "./markers.js";
 
 export const frontmatterWriteAnnotation = Annotation.define<boolean>();
 
-/** Block raw edits to frontmatter ranges in wysiwyg (FM1/FM2); L5 writes via session applySession. */
-export function frontmatterLockFilter(schema: StructureSchema): Extension {
+export type FrontmatterSchemaArg = StructureSchema | ((state: EditorState) => StructureSchema);
+
+function resolveFrontmatterSchema(schema: FrontmatterSchemaArg, state: EditorState): StructureSchema {
+  return typeof schema === "function" ? schema(state) : schema;
+}
+
+function lineTextContaining(doc: string, pos: number): string {
+  const from = pos <= 0 ? 0 : doc.lastIndexOf("\n", pos - 1) + 1;
+  const nl = doc.indexOf("\n", from);
+  const to = nl < 0 ? doc.length : nl;
+  return doc.slice(from, to);
+}
+
+function changeTouchesRange(
+  doc: string,
+  fromA: number,
+  toA: number,
+  range: { from: number; to: number },
+): boolean {
+  if (fromA < range.to && toA > range.from) return true;
+  // Point insert at `from` prepends into the fence (FM2).
+  if (fromA === toA && fromA >= range.from && fromA < range.to) return true;
+  // Backspace at `from` unglues only when the previous line is non-empty (FM9).
+  if (toA === range.from && fromA < range.from && fromA >= range.from - 1) {
+    return lineTextContaining(doc, range.from - 1).trim().length > 0;
+  }
+  return false;
+}
+
+export type FrontmatterLockOpts = {
+  /** Host-owned holes (e.g. a typeable blank after an empty heading). */
+  allowChange?: (from: number, to: number, state: EditorState) => boolean;
+  /** LH3/LH4: a deletion that covers a heading unit may also take its YAML. */
+  headingEditingLocked?: boolean;
+};
+
+/** Block raw edits to hidden frontmatter in wysiwyg (FM1/FM2/FM9); L5 writes via session applySession. */
+export function frontmatterLockFilter(
+  schema: FrontmatterSchemaArg,
+  opts?: FrontmatterLockOpts,
+): Extension {
   return EditorState.transactionFilter.of((tr) => {
     if (!tr.docChanged) return tr;
+    if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) return tr;
     if (tr.annotation(syncAnnotation)) return tr;
     if (tr.annotation(frontmatterWriteAnnotation)) return tr;
-    const doc = tr.startState.doc.toString();
-    const tree = projectTree(doc, schema);
+    if (tr.annotation(hostWriteAnnotation)) return tr;
+    const resolved = resolveFrontmatterSchema(schema, tr.startState);
+    const startDoc = tr.startState.doc.toString();
+    const zones = hiddenFrontmatterRanges(startDoc, resolved);
+    const units = headingUnitRanges(startDoc, resolved);
     let blocked = false;
-    tr.changes.iterChanges((fromA, toA) => {
-      for (const node of tree.nodes.values()) {
-        const fm = node.frontmatter;
-        if (!fm) continue;
-        if (fromA < fm.to && toA > fm.from) blocked = true;
+    tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+      if (opts?.allowChange?.(fromA, toA, tr.startState)) return;
+      const deletion = inserted.length === 0 && toA > fromA;
+      if (deletion && units.some((unit) => fromA <= unit.from && toA >= unit.to)) return;
+      for (const zone of zones) {
+        if (changeTouchesRange(startDoc, fromA, toA, zone)) blocked = true;
       }
     });
     return blocked ? [] : tr;
   });
+}
+
+function lineBounds(doc: string, pos: number): { from: number; to: number } {
+  const from = pos <= 0 ? 0 : doc.lastIndexOf("\n", pos - 1) + 1;
+  const nl = doc.indexOf("\n", pos);
+  return { from, to: nl < 0 ? doc.length : nl };
+}
+
+function headingLineStarts(doc: string): ReadonlySet<number> {
+  return new Set(headingMarkers(doc).map((mk) => mk.from));
+}
+
+/** Enter on an ATX line would split the heading (L4). Blanks beside it stay prose. */
+function blocksWysiwygNewline(doc: string, pos: number): boolean {
+  const starts = headingLineStarts(doc);
+  return starts.has(lineBounds(doc, pos).from);
 }
 
 /** L2: one pass over the original insert. The mask backslash is never masked again. */
@@ -121,11 +183,17 @@ export function wysiwygGuards(opts?: {
   structureLocked?: boolean;
   inlineRefStyle?: InlineRefStyle;
   schema?: StructureSchema;
+  headingEditingLocked?: boolean;
 }): Extension {
   const structureLocked = opts?.structureLocked ?? true;
   const inlineRefStyle = opts?.inlineRefStyle ?? "attribute-block";
   return [
-    selectionParkFilter({ inlineRefStyle, schema: opts?.schema }),
+    selectionParkFilter({
+      inlineRefStyle,
+      schema: opts?.schema,
+      headingEditingLocked: opts?.headingEditingLocked,
+    }),
+    opts?.schema ? structureJoinFilter(opts.schema) : [],
     Prec.highest(
       keymap.of([
         {
@@ -182,6 +250,15 @@ export function wysiwygGuards(opts?: {
             return true;
           },
         },
+        {
+          key: "Enter",
+          run(view) {
+            if (!structureLocked) return false;
+            const sel = view.state.selection.main;
+            if (!sel.empty) return false;
+            return blocksWysiwygNewline(view.state.doc.toString(), sel.head);
+          },
+        },
       ]),
     ),
     EditorView.inputHandler.of((view, from, to, text) => {
@@ -209,6 +286,7 @@ export function wysiwygGuards(opts?: {
           }
           const ins = inserted.toString();
           if (/(^|\n)#{1,6}[ \t]/.test(ins)) blocked = true;
+          if (ins.includes("\n") && blocksWysiwygNewline(startDoc, fromA)) blocked = true;
         });
         if (blocked) return [];
       }

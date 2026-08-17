@@ -266,6 +266,7 @@ StructureSchema = {
 
 Policy = {
   structureEditingInWysiwyg?: 'locked' | 'allowed',   // Default 'locked'
+  headingEditingInWysiwyg?:   'inline' | 'locked',    // Default 'inline' (L4); 'locked' → LH1–LH3
   frontmatterInWysiwyg?:      'form'   | 'hidden',    // Default 'form'
   pillFields?:                string[],               // Default [] — YAML keys shown as pills (§ 8.4)
   inlineRefStyle?:            'attribute-block' | 'html-ref',  // Default 'attribute-block' (§ 8.3)
@@ -282,6 +283,9 @@ erscheinen (P5). Nicht gelistete Schlüssel bleiben nur im Formular (FM7).
 **Host-Politik, keine Invariante**. Die Komponente muss sperren *können*; ob sie es tut,
 entscheidet der Host. Voreingestellt ist `locked`, weil eine Struktur-Mutation ohne sichtbare
 Marker für den Bearbeiter schwer vorhersehbar ist.
+`headingEditingInWysiwyg` ist dieselbe Klasse: Default `'inline'` hält L4 und LH4; `'locked'` macht
+Schema-Überschrift plus YAML-Zaun zur atomaren Einheit (LH1–LH3). Der Host rendert den Titel
+dann als Formular/Widget und schreibt per L5.
 
 ---
 
@@ -416,10 +420,15 @@ Dispatch auslösen.
 | **L1** | Marker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. ATX-Marker gelten **nicht** innerhalb eines Fenced-Code-Blocks (CommonMark): `#` dort bleibt sichtbarer Quelltext. Inline-Delimiter (§ 8.6) sind dieselbe Atom-Familie — je Delimiter-Run (`*` / `**` / `_` / `__` / `~~` / Backtick-Run), nicht die ganze Spanne. In `source` ist `##` zwei Zeichen, kein Atom. |
 | **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. In `wysiwyg` blendet die Darstellung den Maskierungs-Backslash aus (`\#` liest als `#`); der Puffer behält `\#`. Löschen des sichtbaren `#` entfernt den Backslash mit. |
 | **L3** | Mehrzeiliges Einfügen wird in einem Schritt maskiert und in einem Schritt zurückgenommen. |
-| **L4** | Überschriftentext bleibt in `wysiwyg` editierbar, unabhängig von `policy.structureEditingInWysiwyg` — **außer** der Scope-Überschrift, wenn `showNodeHeading: false` (SNH2): die ist ausgeblendet und nicht erreichbar. |
+| **L4** | Überschriftentext bleibt in `wysiwyg` editierbar, unabhängig von `policy.structureEditingInWysiwyg` — **außer** der Scope-Überschrift, wenn `showNodeHeading: false` (SNH2): die ist ausgeblendet und nicht erreichbar. Zeilenumbruch (Enter) auf einer Überschriftenzeile fügt bei `'locked'` keine Zeile ein — das wäre Struktur, nicht Titeltext. Eine Leerzeile *zwischen* Überschriften bleibt normale Prosa. Gilt bei `headingEditingInWysiwyg: 'inline'` (Default). Bei `'locked'` tritt LH1 an die Stelle der Titel-Editierbarkeit. |
 | **L5** | Programmatische Änderungen umgehen die Sperren gezielt (Widgets, API, Undo). |
 | **L6** | Sperrdefinition an genau einer Stelle (I6). |
-| **L7** | Ändert sich die Presentation oder die Menge der gesperrten Bereiche, wird die Selektion **in einem Schritt** aus neu gesperrten Bereichen geparkt: Anker und Kopf je auf die nächstgelegene erreichbare Position außerhalb der Sperre. Ohne Timeline-Eintrag, ohne Scroll (I4), ohne Nachlauf (I5). Eine in `source` gültige Selektion darf in `wysiwyg` nicht in Chrome stehen bleiben. Gilt für alle Sperren derselben Menge — eigene wie host-beigesteuerte (`ProtectedRange`, § 12). Ein Ort (L6). |
+| **L7** | Ändert sich die Presentation oder die Menge der gesperrten Bereiche, wird die Selektion **in einem Schritt** aus neu gesperrten Bereichen geparkt: Anker und Kopf je auf die nächstgelegene erreichbare Position außerhalb der Sperre. Eine Position auf `from` einer halb-offenen Sperre `[from, to)` gilt als innen, wenn `from` am Zeilenanfang oder auf einem Zeilenumbruch liegt (Einfügeloch vor Block-Atomen) — Parkziel ist dann `to`. Inline-Atome (Chip-Chrome nach dem Label) behalten `from` als erreichbaren Rand. Endet eine Block-Sperre am Dokumentende ohne folgende Zeile, wird ein `\n` als Parkzeile angelegt (kein Timeline-Eintrag). Ohne Scroll (I4), ohne Nachlauf (I5). Eine in `source` gültige Selektion darf in `wysiwyg` nicht in Chrome stehen bleiben. Gilt für alle Sperren derselben Menge — eigene wie host-beigesteuerte (`ProtectedRange`, § 12). Ein Ort (L6). |
+| **L8** | In `wysiwyg` darf eine Löschung Prosa nicht mit einer Schema-Überschrift oder gebundenem YAML verkleben, indem sie den trennenden Zeilenumbruch (und nur-leere Zeilen dazwischen) entfernt. Gilt unabhängig von `headingEditingInWysiwyg`. Undo, Sync und L5 (`hostWriteAnnotation`) umgehen die Sperre. Host-Chrome, das keine Schema-Überschrift ist, sperrt denselben Join über `extraLockedRanges` (Rücktaste an `from`). |
+| **LH1** | `headingEditingInWysiwyg: 'locked'`: jede Schema-Überschrift und ihr YAML-Zaun (falls vorhanden) sind **eine** gesperrte, atomare Einheit. Die Einheit läuft vom öffnenden Zaun (sonst `heading.from`) bis einschließlich des Newlines nach der ATX-Zeile. Titeltext ist nicht zeichenweise erreichbar. Leading blanks vor dem Zaun bleiben Prosa. `source` und `'inline'` unverändert. Schreibzugriff nur L5. |
+| **LH2** | Leerer Caret an der Einheitsgrenze: Rücktaste bei `to` bzw. Entf bei `from` (oder dem Newline davor) **selektiert** die Einheit und löscht nicht. |
+| **LH3** | Eine Löschung darf eine Heading-Einheit nur entfernen, wenn sie die Einheit vollständig überdeckt. Teilüberlappung wird abgewiesen. Select-all im Ausschnitt und anschließendes Löschen ist zulässig. |
+| **LH4** | `headingEditingInWysiwyg: 'inline'`: Wird der Titel einer Schema-Überschrift vollständig geleert, entfällt die Heading-Einheit (YAML-Zaun falls vorhanden plus ATX-Zeile inkl. Newline). Reine Einfügungen (Zeilenumbruch im Titel) tun das nicht. Extra-gesperrte Host-Ranges sind ausgenommen. Leading blanks vor dem Zaun bleiben Prosa (LH1). `'locked'` braucht das nicht (LH1). |
 
 ### 8.2 Frontmatter
 
@@ -434,13 +443,14 @@ nicht als Rohtext erreichbar. `policy.frontmatterInWysiwyg` entscheidet die Dars
 | # | Regel |
 | - | ----- |
 | **FM1** | Der Rohtext des Blocks ist in `wysiwyg` nicht per Caret erreichbar und nicht direkt editierbar. |
-| **FM2** | Keine Tastenfolge — auch keine wiederholte — macht ihn sichtbar, zerteilt ihn oder verklebt ihn mit Nachbartext. |
+| **FM2** | Keine Tastenfolge — auch keine wiederholte — macht ihn sichtbar, zerteilt ihn oder verklebt ihn mit Nachbartext. Zur gesperrten Einheit gehören der YAML-Zaun und die Klebe-Leerzeilen nach dem schließenden Zaun bis zur gebundenen Überschrift. Rücktaste direkt vor `---`, wenn die vorausgehende Zeile nicht leer ist, bleibt gesperrt. |
 | **FM3** | Das Formular schreibt Änderungen **ausschließlich als Transaktion** auf die YAML-Range. Kein Formularzustand außerhalb des Document. |
 | **FM4** | Daraus folgt ohne Zusatzpfad: die Änderung liegt auf der Timeline (§ 9) und im Dirty-Status (§ 9.3). |
 | **FM5** | Ein geleertes Feld erzeugt gültiges Markdown — Schlüssel entfällt oder trägt einen leeren Wert, nie ein YAML-Fragment. |
 | **FM6** | Der Frontmatter des Scope-Node einer View wird auch dann gerendert, wenn er textlich vor der Überschrift liegt. |
 | **FM7** | Das Formular ist **Metadaten-Oberfläche, kein Fließtext**: seine Feldinhalte nehmen an der Textsuche (§ 10) **nicht** teil. |
 | **FM8** | Als Block-Widget deklariert das Formular seine **Endhöhe** über `estimatedHeight` (oder gleichwertig), bevor Scroll/Layout die Zeile braucht. `toDOM` stellt dieselbe Höhe **synchron** her — kein nachträgliches Wachstum per Microtask/`requestMeasure`, das `scrollTop` korrigiert, während der Nutzer nur rollt. |
+| **FM9** | In `hidden` ist die ausgeblendete **und gesperrte** Spanne der YAML-Zaun bis zur gebundenen Überschrift (inkl. Klebe-Leerzeilen nach dem schließenden Zaun). Die Leerzeile *nach* der vorausgehenden Überschrift bleibt eine normale, sichtbare, editierbare Zeile. |
 
 FM7 ist eine bewusste Entscheidung, keine technische Grenze — Begründung und Alternative in
 § 17, O8.
@@ -827,13 +837,23 @@ Deckung.
 | `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
 | `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
 | `intervalsOverlap(a, b)` · `scrollElementIntoViewIfNeeded(el, opts?, port?)` | rein / DOM — vertikale Sichtbarkeit im Scrollport (G9). |
-| `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. |
+| `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. Mit `schema` auch L8 (`structureJoinFilter`). |
+| `structureJoinFilter(schema)` | Extension — L8: Prosa darf nicht mit Schema-Überschrift oder gebundenem YAML verkleben. |
+| `frontmatterLockFilter(schema, opts?)` | Extension — FM2 Edit-Sperre; L5 via `hostWriteAnnotation` / `frontmatterWriteAnnotation` / Undo. `opts.allowChange` für Host-Löcher in der gepolsterten Zone. |
+| `hiddenFrontmatterGuards(schema)` | Extension — wysiwyg ohne Session: FM unsichtbar (Zeilen-Hide ab dem Zaun, FM9), atomar, Edit-Sperre (FM1/FM2). |
 | `projectTree(doc, schema)` | rein — Strukturbäume (I2). |
 | `frontmatterRanges(doc, schema)` | rein — YAML-Blöcke aus dem Tree (FM1, I6). |
+| `paddedFrontmatterRanges(doc, schema)` | rein — YAML-Blöcke plus umgebende Leerzeilen bis zur gebundenen Überschrift (I6). |
+| `hiddenFrontmatterRanges(doc, schema)` | rein — YAML-Zaun bis zur gebundenen Überschrift, ohne die Leerzeile nach der vorausgehenden Überschrift (FM9, I6). |
+| `headingUnitRanges(doc, schema)` | rein — YAML-Zaun plus gebundene ATX-Zeile inkl. Newline (LH1, I6). |
+| `headingUnitGuards(schema, opts?)` · `headingUnitAtBoundary(doc, schema, head, dir)` | Extension / rein — Default `'locked'`: Lock, Atom, Sticky-Select (LH1–LH3). `{ editing: 'inline' }`: leerer Titel entfernt die Einheit (LH4). |
 | `headingMarkers(doc)` · `maskBackslashRanges(doc, from, to)` · `findHtmlComments(doc, from?, to?)` · `findInlineMarks(doc)` · `inlineDelimiterRanges(marks)` | rein — eine Scanner-Stelle (I6). |
 | `extraLockedRanges` | Facet — Host-Sperren (`ProtectedRange`) in dieselbe Menge (L6/L7). |
+| `extraAtomicRanges` | Facet — Host-Ranges, die der Caret überspringt. Unabhängig von `extraLockedRanges` (eine Zeile kann gesperrt und trotzdem nicht atomar sein). |
+| `extraLockedGuards()` | Extension — Edit-Sperre auf `extraLockedRanges`, Atomic auf `extraAtomicRanges`, L7-Park der Extra-Ranges inkl. Parkzeile am EOF. |
+| `hostWriteAnnotation` | Annotation — L5-Bypass der Extra-Sperren (Host-Schreibvorgänge). |
 | `parkSelectionInState(state, opts?)` | lesend — L7-Park auf dem aktuellen State (Scanner + `extraLockedRanges`). |
-| `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` | Extension — Host-Widgets auf geschützten Ranges. |
+| `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` | Extension — Host-Widgets auf geschützten Ranges (`block: true` Replace). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
@@ -1138,11 +1158,19 @@ darf auf Zeit warten (I5).
 | T115 | Wysiwyg-Delete am Ende der Überschriftenzeile entfernt das folgende CRLF, nicht den Nachbarn (§ 11.1.10). |
 | T116 | Löschen des sichtbaren `#` von `\#` in `wysiwyg` entfernt den Maskierungs-Backslash mit (L2). |
 | **T43** | `policy.structureEditingInWysiwyg: 'locked'` → Strukturänderung abgelehnt, Überschriftentext editierbar (L4). Mit `'allowed'` → Strukturänderung zulässig, Regeln R6/R7 gelten unverändert. **Beide Belegungen werden geprüft.** |
+| **T136** | `headingEditingInWysiwyg: 'locked'`: Caret und Tippen erreichen den Titel nicht; YAML-Zaun und ATX-Zeile sind eine Einheit (LH1). Default `'inline'` ändert T43 nicht. |
+| **T137** | Leerer Caret hinter der Einheit: Rücktaste selektiert die Einheit und ändert das Document nicht (LH2). |
+| **T138** | Selektion, die die Einheit vollständig überdeckt (inkl. Select-all), darf sie löschen; eine Teilüberlappung nicht (LH3). |
 | T44 | Undo darf gesperrte Bereiche verändern (U6). |
 | T64 | Caret lässt sich in `wysiwyg` nicht in den Frontmatter-Rohtext setzen (FM1). |
 | T65 | Formularfeld ändern → YAML-Range im Document geändert, in paralleler `source`-View sichtbar (FM3). |
 | T66 | Feld leeren → gültiges Markdown, kein YAML-Fragment (FM5). |
 | T67 | Frontmatter vor der Überschrift wird für den Scope-Node gerendert (FM6). |
+| **T139** | Zwei Schema-Überschriften mit Leerzeile plus YAML dazwischen: in `hidden` bleibt die Leerzeile nach der ersten Überschrift sichtbar; der YAML-Zaun nicht (FM9). |
+| **T140** | Dieselbe Leerzeile ist editierbar (Tippen, Löschen). Rücktaste, die die Überschriftenzeile mit `---` verkleben würde, bleibt abgelehnt (FM2/FM9). |
+| **T141** | Rücktaste am Anfang einer Prosa-Zeile direkt unter einer Schema-Überschrift (oder gebundenem YAML) ändert das Document nicht; Entf am Ende der Prosa-Zeile direkt über der nächsten Schema-Überschrift ebenso (L8). |
+| **T142** | Wysiwyg, letzte Block-Sperre endet am EOF ohne folgende Zeile: Selektion auf EOF legt ein `\n` an und parkt den Caret dahinter (L7). |
+| **T143** | `headingEditingInWysiwyg: 'inline'`: Löschen des letzten Titelzeichens entfernt YAML-Zaun und ATX-Zeile, Prosa bleibt; Enter im Titel tut das nicht; eine extra-gesperrte Überschrift bleibt (LH4). |
 
 ### Suche
 

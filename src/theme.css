@@ -73,3 +73,17 @@
 
 /* Heading stamps (HS1–HS3). No default look — hosts style `.syn-depth-*` / `.syn-rank-*` /
  * `.syn-rel-*` / `.syn-section-open`. */
+
+/* Hidden FM lines (FM1/FM2) — per-line collapse, not a block widget (stamps). */
+.cm-line.syn-fm-hidden-line {
+  min-height: 0;
+  height: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  pointer-events: none;
+}

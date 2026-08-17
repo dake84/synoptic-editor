@@ -9,7 +9,9 @@ import { bodyBlockStarts, blockIndexAtOffset } from "../../../src/core/block-off
 import { readingLinePos } from "../../../src/view/scroll.js";
 import { synopticLockedRanges } from "../../../src/view/guards/locked-ranges.js";
 import { parkSelection } from "../../../src/view/guards/park-selection.js";
-import { EditorSelection } from "@codemirror/state";
+import { extraLockedGuards, extraLockedRanges } from "../../../src/index.js";
+import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
 
 const DOC = `---
@@ -49,12 +51,21 @@ describe("selection park (L7)", () => {
   });
 
   /** @covers L7 */
+  it("parks a caret on lock.from to lock.to (insert hole before the atom)", () => {
+    const doc = "# Title\nbody\n";
+    const hashes = { from: 0, to: 2 };
+    const parked = parkSelection(EditorSelection.single(0), [hashes], doc);
+    expect(parked.main.head).toBe(2);
+    expect(parked.main.anchor).toBe(2);
+  });
+
+  /** @covers L7 */
   it("moves both anchor and head to the nearest outside without scrolling", () => {
     const doc = "# Title\nbody\n";
     const hashes = { from: 0, to: 2 };
-    const parked = parkSelection(EditorSelection.single(1), [hashes], doc.length);
-    expect(parked.main.anchor === 0 || parked.main.anchor === 2).toBe(true);
-    expect(parked.main.head).toBe(parked.main.anchor);
+    const parked = parkSelection(EditorSelection.single(1), [hashes], doc);
+    expect(parked.main.anchor).toBe(2);
+    expect(parked.main.head).toBe(2);
   });
 
   /** @covers L7, V11 */
@@ -75,5 +86,21 @@ describe("selection park (L7)", () => {
     view.setPresentation("wysiwyg");
     const after = readingLinePos(view.editorView()!);
     expect(blockIndexAtOffset(starts, after)).toBe(blockBefore);
+  });
+
+  /** @covers L7, T142 */
+  it("appends a park newline when a block lock ends at EOF", () => {
+    const doc = "# Title";
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [extraLockedRanges.of([{ from: 0, to: doc.length }]), extraLockedGuards()],
+      }),
+      parent: document.body,
+    });
+    view.dispatch({ selection: { anchor: doc.length } });
+    expect(view.state.doc.toString()).toBe("# Title\n");
+    expect(view.state.selection.main.head).toBe(doc.length + 1);
+    view.destroy();
   });
 });
