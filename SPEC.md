@@ -847,7 +847,7 @@ Deckung.
 | `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. Mit `schema` auch L8 (`structureJoinFilter`). |
 | `structureJoinFilter(schema)` | Extension — L8: Prosa darf nicht mit Schema-Überschrift oder gebundenem YAML verkleben. |
 | `frontmatterLockFilter(schema, opts?)` | Extension — FM2 Edit-Sperre; L5 via `hostWriteAnnotation` / `frontmatterWriteAnnotation` / Undo. `opts.allowChange` für Host-Löcher in der gepolsterten Zone. |
-| `hiddenFrontmatterGuards(schema)` | Extension — wysiwyg ohne Session: FM unsichtbar (Zeilen-Hide ab dem Zaun, FM9), atomar, Edit-Sperre (FM1/FM2). |
+| `hiddenFrontmatterGuards(schema)` | Extension — wysiwyg ohne Session: FM unsichtbar (Zeilen-Hide ab dem Zaun, FM9), atomar, Edit-Sperre (FM1/FM2), L7-Park der Hidden-FM-Zonen plus `extraLockedRanges` (ohne L1-Marker). |
 | `projectTree(doc, schema)` | rein — Strukturbäume (I2). |
 | `frontmatterRanges(doc, schema)` | rein — YAML-Blöcke aus dem Tree (FM1, I6). |
 | `paddedFrontmatterRanges(doc, schema)` | rein — YAML-Blöcke plus umgebende Leerzeilen bis zur gebundenen Überschrift (I6). |
@@ -857,7 +857,8 @@ Deckung.
 | `headingMarkers(doc)` · `maskBackslashRanges(doc, from, to)` · `findHtmlComments(doc, from?, to?)` · `findInlineMarks(doc)` · `inlineDelimiterRanges(marks)` | rein — eine Scanner-Stelle (I6). |
 | `extraLockedRanges` | Facet — Host-Sperren (`ProtectedRange`) in dieselbe Menge (L6/L7). |
 | `extraAtomicRanges` | Facet — Host-Ranges, die der Caret überspringt. Unabhängig von `extraLockedRanges` (eine Zeile kann gesperrt und trotzdem nicht atomar sein). |
-| `extraLockedGuards()` | Extension — Edit-Sperre auf `extraLockedRanges`, Atomic auf `extraAtomicRanges`, L7-Park der Extra-Ranges inkl. Parkzeile am EOF. |
+| `extraLockedGuards(opts?)` | Extension — Edit-Sperre auf `extraLockedRanges`, Atomic auf `extraAtomicRanges`. Default inkl. L7-Park der Extra-Ranges (Parkzeile am EOF). `{ park: false }` wenn ein anderer Filter die Extra-Ranges schon parkt (Hidden-FM-Guards oder Session). |
+| `extraLockedParkFilter()` | Extension — nur L7-Park der Extra-Ranges, ohne Edit-Sperre/Atom (wenn die schon von `extraLockedGuards({ park: false })` kommen). |
 | `hostWriteAnnotation` | Annotation — L5-Bypass der Extra-Sperren (Host-Schreibvorgänge). |
 | `parkSelectionInState(state, opts?)` | lesend — L7-Park auf dem aktuellen State (Scanner + `extraLockedRanges`). |
 | `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` | Extension — Host-Widgets auf geschützten Ranges (`block: true` Replace). |

@@ -9,7 +9,12 @@ import { bodyBlockStarts, blockIndexAtOffset } from "../../../src/core/block-off
 import { readingLinePos } from "../../../src/view/scroll.js";
 import { synopticLockedRanges } from "../../../src/view/guards/locked-ranges.js";
 import { parkSelection } from "../../../src/view/guards/park-selection.js";
-import { extraLockedGuards, extraLockedRanges, headingUnitRanges } from "../../../src/index.js";
+import {
+  extraLockedGuards,
+  extraLockedRanges,
+  headingUnitRanges,
+  hiddenFrontmatterGuards,
+} from "../../../src/index.js";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
@@ -128,8 +133,88 @@ id: b
     view.dispatch({ selection: EditorSelection.cursor(join) });
     const after = view.state.doc.toString();
     expect(after.slice(join, join + 4)).toBe("\n---");
-    expect(view.state.selection.main.head).toBe(join + 1);
+    expect(view.state.selection.main.head).toBe(join);
+    expect(view.state.doc.lineAt(join).text.trim()).toBe("");
     expect(after).toContain("# A\n\n---\nid: b");
+    view.destroy();
+  });
+
+  /** @covers L7, FM9 */
+  it("parks a caret inside hidden FM onto the bound heading without splitting YAML from ATX", () => {
+    const doc = `---
+id: n0
+---
+# Root
+
+body
+`;
+    const heading = doc.indexOf("# Root");
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [
+          hiddenFrontmatterGuards(FIXTURE_SCHEMA),
+          extraLockedRanges.of([{ from: heading, to: doc.indexOf("\n", heading) + 1 }]),
+          extraLockedGuards(),
+        ],
+      }),
+      parent: document.body,
+    });
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.main.head).toBe(doc.indexOf("\n", heading) + 1);
+    view.destroy();
+  });
+
+  /** @covers L7, T144 */
+  it("inserts a park newline between a heading extra-lock and the next hidden FM", () => {
+    const doc = `# A
+---
+id: b
+---
+## B
+`;
+    const headingA = doc.indexOf("# A");
+    const extraTo = doc.indexOf("\n", headingA) + 1;
+    expect(doc.slice(extraTo, extraTo + 3)).toBe("---");
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [
+          hiddenFrontmatterGuards(FIXTURE_SCHEMA),
+          extraLockedRanges.of([{ from: headingA, to: extraTo }]),
+          extraLockedGuards(),
+        ],
+      }),
+      parent: document.body,
+    });
+    view.dispatch({ selection: EditorSelection.cursor(headingA) });
+    const after = view.state.doc.toString();
+    expect(after.slice(extraTo, extraTo + 4)).toBe("\n---");
+    expect(view.state.selection.main.head).toBe(extraTo);
+    expect(view.state.doc.lineAt(extraTo).text.trim()).toBe("");
+    expect(after).toContain("# A\n\n---\nid: b");
+    view.destroy();
+  });
+
+  /** @covers L7, FM1 */
+  it("parks out of hidden FM on an isolated mount without extra locks", () => {
+    const doc = `---
+id: n0
+---
+# Root
+`;
+    const heading = doc.indexOf("# Root");
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [hiddenFrontmatterGuards(FIXTURE_SCHEMA)],
+      }),
+      parent: document.body,
+    });
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+    expect(view.state.selection.main.head).toBe(heading);
+    expect(view.state.doc.toString()).toBe(doc);
     view.destroy();
   });
 });

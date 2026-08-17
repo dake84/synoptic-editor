@@ -51,8 +51,11 @@ export {
   extraLockedRanges,
   hostWriteAnnotation,
 } from "./view/guards/locked-ranges.js";
-export function extraLockedGuards(): Extension {
-  return [extraLockedEditGuards(), extraLockedParkFilter()];
+export { extraLockedParkFilter } from "./view/guards/park-selection.js";
+export function extraLockedGuards(opts?: { park?: boolean }): Extension {
+  const edit = extraLockedEditGuards();
+  if (opts?.park === false) return edit;
+  return [edit, extraLockedParkFilter()];
 }
 export { parkSelectionInState } from "./view/guards/park-selection.js";
 export { projectTree, frontmatterRanges, paddedFrontmatterRanges, hiddenFrontmatterRanges, headingUnitRanges } from "./core/tree.js";

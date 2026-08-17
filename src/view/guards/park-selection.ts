@@ -3,9 +3,36 @@
  * One step, no history, no scroll — callers must not add those.
  */
 
-import { Annotation, EditorSelection, EditorState, Transaction, type Extension } from "@codemirror/state";
-import type { Range } from "../../core/types.js";
+import {
+  Annotation,
+  EditorSelection,
+  EditorState,
+  Facet,
+  Transaction,
+  type Extension,
+} from "@codemirror/state";
+import { hiddenFrontmatterRanges } from "../../core/tree.js";
+import type { Range, StructureSchema } from "../../core/types.js";
 import { extraLockedRanges, lockedRangesFromState, type LockedRangeOpts } from "./locked-ranges.js";
+
+type FrontmatterSchemaArg = StructureSchema | ((state: EditorState) => StructureSchema);
+
+/** Present when isolated hidden-FM guards own L7 for extra locks ∪ FM (not L1 markers). */
+const hiddenFrontmatterParkSchema = Facet.define<StructureSchema, StructureSchema | undefined>({
+  combine(inputs) {
+    return inputs[0];
+  },
+});
+
+const hiddenFrontmatterOwnsPark = Facet.define<boolean, boolean>({
+  combine(inputs) {
+    return inputs.some(Boolean);
+  },
+});
+
+function resolveSchema(schema: FrontmatterSchemaArg, state: EditorState): StructureSchema {
+  return typeof schema === "function" ? schema(state) : schema;
+}
 
 const parkFollowUp = Annotation.define<boolean>();
 
@@ -69,13 +96,26 @@ function isLineBlockLock(doc: string, range: Range): boolean {
   return doc.slice(range.from, Math.min(range.to, doc.length)).includes("\n");
 }
 
+function lineStartsWithFence(doc: string, pos: number): boolean {
+  if (doc.slice(pos, pos + 3) !== "---") return false;
+  const after = doc[pos + 3];
+  return after === undefined || after === "\n";
+}
+
+function lineStartsWithAtx(doc: string, pos: number): boolean {
+  return /^#{1,6}(?:[ \t]|$)/.test(doc.slice(pos, Math.min(doc.length, pos + 8)));
+}
+
 /** Shared boundary of two abutting line-block locks (`a.to === b.from`). */
 function adjacentBlockJoin(doc: string, ranges: readonly Range[]): { join: number; first: Range } | null {
   const blocks = ranges.filter((r) => isLineBlockLock(doc, r));
   for (const a of blocks) {
     for (const b of blocks) {
       if (a.from === b.from && a.to === b.to) continue;
-      if (a.to === b.from) return { join: a.to, first: a };
+      if (a.to !== b.from) continue;
+      // Same-node FM.to === heading.from — glue, not an empty-section seam (FM9).
+      if (lineStartsWithFence(doc, a.from) && lineStartsWithAtx(doc, b.from)) continue;
+      return { join: a.to, first: a };
     }
   }
   return null;
@@ -86,11 +126,13 @@ function caretAtJoin(sel: EditorSelection, parked: EditorSelection, join: number
   return sel.ranges.some(atJoin) || parked.ranges.some(atJoin);
 }
 
-function selInsideLock(sel: EditorSelection, lock: Range): boolean {
-  return sel.ranges.some(
-    (r) =>
-      (r.head > lock.from && r.head < lock.to) || (r.anchor > lock.from && r.anchor < lock.to),
-  );
+function selTouchesBlockLock(sel: EditorSelection, lock: Range, doc: string): boolean {
+  const atFrom = lock.to > lock.from && isBlockInsertHole(doc, lock.from);
+  return sel.ranges.some((r) => {
+    const hit = (p: number) =>
+      (p > lock.from && p < lock.to) || (atFrom && p === lock.from);
+    return hit(r.head) || hit(r.anchor);
+  });
 }
 
 function parkFollowUpOf(tr: Transaction, ranges: readonly Range[]) {
@@ -107,11 +149,13 @@ function parkFollowUpOf(tr: Transaction, ranges: readonly Range[]) {
     const abut = adjacentBlockJoin(doc, ranges);
     if (
       abut &&
-      (caretAtJoin(sel, parked, abut.join) || selInsideLock(sel, abut.first))
+      (caretAtJoin(sel, parked, abut.join) || selTouchesBlockLock(sel, abut.first, doc))
     ) {
       return {
         changes: { from: abut.join, insert: "\n" },
-        selection: EditorSelection.cursor(abut.join + 1),
+        selection: EditorSelection.cursor(
+          abut.join > 0 && doc[abut.join - 1] === "\n" ? abut.join : abut.join + 1,
+        ),
       };
     }
   }
@@ -141,7 +185,33 @@ export function selectionParkFilter(opts: LockedRangeOpts = {}): Extension {
   return parkFilter((tr) => lockedRangesFromState(tr.state, opts));
 }
 
-/** L7 for host extra locks only (isolated mounts without wysiwygGuards). */
+/** L7 for host extra locks only (isolated mounts without hidden FM). */
 export function extraLockedParkFilter(): Extension {
-  return parkFilter((tr) => tr.state.facet(extraLockedRanges));
+  return parkFilter((tr) => {
+    if (tr.startState.facet(hiddenFrontmatterOwnsPark) || tr.state.facet(hiddenFrontmatterOwnsPark)) {
+      return [];
+    }
+    return tr.state.facet(extraLockedRanges);
+  });
+}
+
+/**
+ * Isolated wysiwyg: L7 on extra locks ∪ hidden FM, without L1 heading markers.
+ * Owns extra-lock parking while mounted so extraLockedParkFilter does not double up (I6).
+ */
+export function hiddenFrontmatterParkFilter(schema: FrontmatterSchemaArg): Extension {
+  const schemaExt =
+    typeof schema === "function"
+      ? hiddenFrontmatterParkSchema.compute([], (state) => schema(state))
+      : hiddenFrontmatterParkSchema.of(schema);
+  return [
+    hiddenFrontmatterOwnsPark.of(true),
+    schemaExt,
+    parkFilter((tr) => {
+      const resolved =
+        tr.state.facet(hiddenFrontmatterParkSchema) ?? resolveSchema(schema, tr.state);
+      const fm = hiddenFrontmatterRanges(tr.state.doc.toString(), resolved);
+      return [...tr.state.facet(extraLockedRanges), ...fm];
+    }),
+  ];
 }

@@ -33,6 +33,7 @@
     "findInDocument",
     "extraAtomicRanges",
     "extraLockedGuards",
+    "extraLockedParkFilter",
     "extraLockedRanges",
     "hostWriteAnnotation",
     "parkSelectionInState",

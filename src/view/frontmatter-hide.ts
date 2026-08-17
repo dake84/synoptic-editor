@@ -20,6 +20,7 @@ import {
   type FrontmatterLockOpts,
   type FrontmatterSchemaArg,
 } from "./guards/wysiwyg.js";
+import { hiddenFrontmatterParkFilter } from "./guards/park-selection.js";
 
 export type { FrontmatterSchemaArg };
 
@@ -120,14 +121,18 @@ function hiddenAtomField(schema: FrontmatterSchemaArg): StateField<DecorationSet
 }
 
 /**
- * Isolated wysiwyg mount: hide + atomic + edit lock (FM1/FM2).
- * Selection parking stays with the host when it owns a typeable park-blank
- * inside a padded zone (empty section after a heading).
- * Session chrome already composes hide/atom/lock; do not mount this on top of it.
+ * Isolated wysiwyg mount: hide + atomic + edit lock (FM1/FM2) + L7 park of
+ * hidden FM ∪ extraLockedRanges (no L1 markers). Session chrome already
+ * composes hide/atom/lock; do not mount this on top of it.
  */
 export function hiddenFrontmatterGuards(
   schema: FrontmatterSchemaArg,
   opts?: FrontmatterLockOpts,
 ): Extension {
-  return [hiddenDecoField(schema), hiddenAtomField(schema), frontmatterLockFilter(schema, opts)];
+  return [
+    hiddenFrontmatterParkFilter(schema),
+    hiddenDecoField(schema),
+    hiddenAtomField(schema),
+    frontmatterLockFilter(schema, opts),
+  ];
 }
