@@ -59,21 +59,63 @@ function needsEofParkNewline(doc: string, ranges: readonly Range[], sel: EditorS
   if (doc[doc.length - 1] === "\n") return false;
   const atEof = sel.ranges.some((r) => r.head === doc.length || r.anchor === doc.length);
   if (!atEof) return false;
-  return ranges.some((r) => r.to === doc.length && r.to > r.from && isBlockInsertHole(doc, r.from));
+  return ranges.some(
+    (r) => r.to === doc.length && r.to > r.from && isBlockInsertHole(doc, r.from),
+  );
+}
+
+function isLineBlockLock(doc: string, range: Range): boolean {
+  if (range.to <= range.from) return false;
+  return doc.slice(range.from, Math.min(range.to, doc.length)).includes("\n");
+}
+
+/** Shared boundary of two abutting line-block locks (`a.to === b.from`). */
+function adjacentBlockJoin(doc: string, ranges: readonly Range[]): { join: number; first: Range } | null {
+  const blocks = ranges.filter((r) => isLineBlockLock(doc, r));
+  for (const a of blocks) {
+    for (const b of blocks) {
+      if (a.from === b.from && a.to === b.to) continue;
+      if (a.to === b.from) return { join: a.to, first: a };
+    }
+  }
+  return null;
+}
+
+function caretAtJoin(sel: EditorSelection, parked: EditorSelection, join: number): boolean {
+  const atJoin = (r: { head: number; anchor: number }) => r.head === join || r.anchor === join;
+  return sel.ranges.some(atJoin) || parked.ranges.some(atJoin);
+}
+
+function selInsideLock(sel: EditorSelection, lock: Range): boolean {
+  return sel.ranges.some(
+    (r) =>
+      (r.head > lock.from && r.head < lock.to) || (r.anchor > lock.from && r.anchor < lock.to),
+  );
 }
 
 function parkFollowUpOf(tr: Transaction, ranges: readonly Range[]) {
   const doc = tr.state.doc.toString();
   const sel = tr.selection ?? tr.startState.selection.map(tr.changes);
   const parked = parkSelection(sel, ranges, doc);
-  const newline = !tr.docChanged && needsEofParkNewline(doc, ranges, parked);
-  if (parked.eq(sel) && !newline) return null;
-  if (newline) {
-    return {
-      changes: { from: doc.length, insert: "\n" },
-      selection: EditorSelection.cursor(doc.length + 1),
-    };
+  if (!tr.docChanged) {
+    if (needsEofParkNewline(doc, ranges, parked)) {
+      return {
+        changes: { from: doc.length, insert: "\n" },
+        selection: EditorSelection.cursor(doc.length + 1),
+      };
+    }
+    const abut = adjacentBlockJoin(doc, ranges);
+    if (
+      abut &&
+      (caretAtJoin(sel, parked, abut.join) || selInsideLock(sel, abut.first))
+    ) {
+      return {
+        changes: { from: abut.join, insert: "\n" },
+        selection: EditorSelection.cursor(abut.join + 1),
+      };
+    }
   }
+  if (parked.eq(sel)) return null;
   return { selection: parked };
 }
 

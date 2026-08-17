@@ -9,7 +9,7 @@ import { bodyBlockStarts, blockIndexAtOffset } from "../../../src/core/block-off
 import { readingLinePos } from "../../../src/view/scroll.js";
 import { synopticLockedRanges } from "../../../src/view/guards/locked-ranges.js";
 import { parkSelection } from "../../../src/view/guards/park-selection.js";
-import { extraLockedGuards, extraLockedRanges } from "../../../src/index.js";
+import { extraLockedGuards, extraLockedRanges, headingUnitRanges } from "../../../src/index.js";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
@@ -101,6 +101,35 @@ describe("selection park (L7)", () => {
     view.dispatch({ selection: { anchor: doc.length } });
     expect(view.state.doc.toString()).toBe("# Title\n");
     expect(view.state.selection.main.head).toBe(doc.length + 1);
+    view.destroy();
+  });
+
+  /** @covers L7, T144 */
+  it("inserts a park newline between abutting heading units instead of jumping into the next", () => {
+    const doc = `---
+id: a
+---
+# A
+---
+id: b
+---
+## B
+`;
+    const units = headingUnitRanges(doc, FIXTURE_SCHEMA);
+    const join = units[0]!.to;
+    expect(units[1]?.from).toBe(join);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [extraLockedRanges.of(units), extraLockedGuards()],
+      }),
+      parent: document.body,
+    });
+    view.dispatch({ selection: EditorSelection.cursor(join) });
+    const after = view.state.doc.toString();
+    expect(after.slice(join, join + 4)).toBe("\n---");
+    expect(view.state.selection.main.head).toBe(join + 1);
+    expect(after).toContain("# A\n\n---\nid: b");
     view.destroy();
   });
 });
