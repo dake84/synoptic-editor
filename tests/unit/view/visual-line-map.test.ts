@@ -117,6 +117,22 @@ describe("visual line map golden fixture", () => {
         },
         {
           "from": 71,
+          "to": 86,
+        },
+        {
+          "from": 87,
+          "to": 90,
+        },
+        {
+          "from": 91,
+          "to": 91,
+        },
+        {
+          "from": 92,
+          "to": 123,
+        },
+        {
+          "from": 124,
           "to": 124,
         },
       ]
@@ -131,11 +147,6 @@ describe("visual line map golden fixture", () => {
           "from": 16,
           "text": "# ",
           "to": 18,
-        },
-        {
-          "from": 71,
-          "text": "# ",
-          "to": 73,
         },
         {
           "from": 54,

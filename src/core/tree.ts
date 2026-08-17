@@ -4,6 +4,7 @@
  */
 
 import type { Range, StructureSchema, Tree, TreeNode } from "./types.js";
+import { coveredByFence, fencedCodeRanges } from "./fences.js";
 
 interface RawHeading {
   id: string;
@@ -40,6 +41,7 @@ function escapeRegExp(s: string): string {
  */
 function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
   const rankOf = depthToRank(schema);
+  const fences = fencedCodeRanges(doc);
   const lines = doc.split("\n");
   const out: RawHeading[] = [];
   let offset = 0;
@@ -82,7 +84,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
         if (k < lines.length) {
           const hLine = lines[k]!;
           const hm = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(hLine);
-          if (hm) {
+          if (hm && !coveredByFence(look, fences)) {
             const depth = hm[1]!.length;
             const rank = rankOf.get(depth);
             if (rank !== undefined) {
@@ -113,7 +115,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
     }
 
     const hm = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(line);
-    if (hm) {
+    if (hm && !coveredByFence(lineStart, fences)) {
       const depth = hm[1]!.length;
       const rank = rankOf.get(depth);
       if (rank !== undefined) {

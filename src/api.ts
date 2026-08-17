@@ -76,7 +76,7 @@ export interface CreateViewOptions {
    */
   plugins?: PluginContribution[];
   /**
-   * @deprecated Prefer `plugins`. Raw bags kept during Marli migration only.
+   * @deprecated Prefer `plugins`. Raw bags kept during host migration only.
    */
   extensions?: Extension[];
   /** @deprecated Prefer `plugins` with slot source/wysiwyg. */

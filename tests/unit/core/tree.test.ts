@@ -78,6 +78,15 @@ Body.
     expect([...tree.nodes.values()][0]!.title).toBe("Keep");
     expect(sliceRange(doc, [...tree.nodes.values()][0]!.ownRange)).toContain("##### NotANode");
   });
+
+  /** @covers I2, L1 */
+  it("does not treat ATX inside a fenced code block as a structure node", () => {
+    const doc = ["# Root", "", "```", "# not a node", "```", ""].join("\n");
+    const tree = projectTree(doc, FIXTURE_SCHEMA);
+    expect(tree.roots).toEqual(["auto-1"]);
+    expect([...tree.nodes.values()]).toHaveLength(1);
+    expect(tree.nodes.get("auto-1")?.title).toBe("Root");
+  });
 });
 
 describe("document applyChangeSet", () => {

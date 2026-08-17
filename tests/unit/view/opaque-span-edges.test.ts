@@ -23,12 +23,8 @@ describe("opaque span edges — Synoptic scanners", () => {
   /** @covers L1, IM2 */
   it("hash inside a fenced code block is not an ATX marker in the document string scan", () => {
     const doc = ["# Title", "", "```", "# not a heading", "```", ""].join("\n");
-    const markers = headingMarkers(doc).map((r) => ({ text: slice(doc, r), from: r.from }));
-    // Document the live scanner: a line-start `# ` inside a fence currently matches.
-    // Comparison against Lezer lives in opaque-derivation-compare.test.ts (A4).
-    expect(markers.some((m) => m.text === "# " && doc.slice(m.from).startsWith("# not"))).toBe(
-      true,
-    );
+    expect(headingMarkers(doc).map((r) => slice(doc, r))).toEqual(["# "]);
+    expect(headingMarkers(doc).some((r) => doc.slice(r.from).startsWith("# not"))).toBe(false);
   });
 
   /** @covers L1, IM2 */

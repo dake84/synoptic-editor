@@ -7,6 +7,7 @@
 import { RangeSetBuilder, StateField } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { findHtmlComments, overlapsAny } from "../core/html-comments.js";
+import { coveredByFence, fencedCodeRanges } from "../core/fences.js";
 import {
   findInlineMarks,
   inlineDelimiterRanges,
@@ -211,10 +212,12 @@ function headingLineStarts(
   schema: StructureSchema,
 ): { pos: number; rank: number; headingDepth: number }[] {
   const depthToRank = new Map(schema.levels.map((l) => [l.headingDepth, l.rank]));
+  const fences = fencedCodeRanges(doc);
   const out: { pos: number; rank: number; headingDepth: number }[] = [];
   const re = /^(#{1,6})[ \t]+.+$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(doc))) {
+    if (coveredByFence(m.index, fences)) continue;
     const headingDepth = m[1]!.length;
     const rank = depthToRank.get(headingDepth);
     if (rank !== undefined) out.push({ pos: m.index, rank, headingDepth });

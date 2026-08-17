@@ -110,7 +110,7 @@ Interna werden zu Vertrag, sobald jemand sie benutzt.
 
 ## 4 · Testebenen und Agenten-Budget
 
-Aus dem Marli-Vorgehen übernommen, weil es sich dort bewährt hat.
+Dreistufiges Testbudget — gezielt, Zweig, Tor — wie in der Host-Suite etabliert.
 
 | Ebene | Wann | Befehl |
 | ----- | ---- | ------ |

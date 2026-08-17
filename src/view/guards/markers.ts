@@ -2,14 +2,18 @@
  * ATX heading markers and mask pairs (SPEC.md L1, L2). Pure string scan.
  */
 
+import { coveredByFence, fencedCodeRanges } from "../../core/fences.js";
+
 /** ATX atom: hashes plus exactly one separator. Extra spaces are title (L4). */
 const HEADING_MARKER = /^(#{1,6}[ \t])/gm;
 
 export function headingMarkers(doc: string): { from: number; to: number }[] {
+  const fences = fencedCodeRanges(doc);
   const out: { from: number; to: number }[] = [];
   const re = new RegExp(HEADING_MARKER.source, "gm");
   let m: RegExpExecArray | null;
   while ((m = re.exec(doc))) {
+    if (coveredByFence(m.index, fences)) continue;
     out.push({ from: m.index, to: m.index + m[1]!.length });
   }
   return out;

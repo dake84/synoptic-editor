@@ -135,14 +135,7 @@ describe("Lezer vs Synoptic span derivation (I6 probe)", () => {
           "lezerOnlyEscapes": [],
           "lezerOnlyMarks": [],
           "synOnlyEscapes": [],
-          "synOnlyMarks": [
-            {
-              "from": 13,
-              "origin": "headingMarkers",
-              "text": ""# "",
-              "to": 15,
-            },
-          ],
+          "synOnlyMarks": [],
         },
         "inline marks and escapes": {
           "lezerOnlyEscapes": [],
@@ -217,7 +210,7 @@ describe("Lezer vs Synoptic span derivation (I6 probe)", () => {
   });
 });
 
-/** Host YAML fence scan (Marli `listYamlFmBlockRanges`) — not the tree. */
+/** Host YAML fence scan — not the tree. */
 function hostYamlFmRanges(markdown: string): { from: number; to: number }[] {
   const lines = markdown.split("\n");
   const offsets: number[] = [0];
