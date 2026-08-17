@@ -3,7 +3,7 @@
  * Installed only on wysiwyg view states — source does not get this extension.
  */
 
-import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
+import { Annotation, ChangeSet, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { findChips, type InlineRefStyle } from "../../core/chips.js";
 import { findHtmlComments } from "../../core/html-comments.js";
@@ -117,19 +117,6 @@ export function snapOutOfHeadingMarkers(sel: EditorSelection, doc: string): Edit
   return EditorSelection.create(ranges, sel.mainIndex);
 }
 
-function shiftSelection(
-  sel: EditorSelection | undefined,
-  deltas: { at: number; delta: number }[],
-): EditorSelection | undefined {
-  if (!sel || deltas.length === 0) return sel;
-  const shift = (pos: number) =>
-    pos + deltas.reduce((sum, d) => (d.at <= pos ? sum + d.delta : sum), 0);
-  return EditorSelection.create(
-    sel.ranges.map((r) => EditorSelection.range(shift(r.anchor), shift(r.head))),
-    sel.mainIndex,
-  );
-}
-
 export function wysiwygGuards(opts?: {
   structureLocked?: boolean;
   inlineRefStyle?: InlineRefStyle;
@@ -234,9 +221,8 @@ export function wysiwygGuards(opts?: {
       const inlineDels = inlineDelimiterRanges(findInlineMarks(startDoc));
       let rewritten = false;
       const pieces: { from: number; to: number; insert: string }[] = [];
-      const deltas: { at: number; delta: number }[] = [];
 
-      tr.changes.iterChanges((fromA, toA, _fromB, toB, inserted) => {
+      tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
         let from = fromA;
         let to = toA;
         for (const mk of [...markers, ...pairs, ...comments, ...chips, ...inlineDels]) {
@@ -251,17 +237,18 @@ export function wysiwygGuards(opts?: {
         const raw = inserted.toString();
         const insert = escapeMarkdown(raw);
         if (insert !== raw) rewritten = true;
-        if (from === fromA && to === toA && insert.length !== raw.length) {
-          deltas.push({ at: toB, delta: insert.length - raw.length });
-        }
         pieces.push({ from, to, insert });
       });
 
       if (!rewritten) return tr;
       const userEvent = tr.annotation(Transaction.userEvent);
+      const mapped = tr.startState.selection.map(
+        ChangeSet.of(pieces, tr.startState.doc.length),
+        1,
+      );
       return {
         changes: pieces,
-        selection: shiftSelection(tr.selection, deltas),
+        selection: mapped,
         filter: false,
         annotations: userEvent ? [Transaction.userEvent.of(userEvent)] : undefined,
       };

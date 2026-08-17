@@ -28,9 +28,8 @@ export {
   protectedWidgetExtension,
   preventProtectedDeletionFilter,
   setProtectedActiveMatch,
-  type ProtectedRange,
-  type ProtectedWidgetFactory,
 } from "./view/widgets/protected.js";
+export type { ProtectedRange, ProtectedWidgetFactory } from "./view/widgets/protected.js";
 
 export { findChips } from "./core/chips.js";
 export type { ChipSpan } from "./core/chips.js";
@@ -40,7 +39,12 @@ export { blockIndexAtOffset, bodyBlockStarts } from "./core/block-offsets.js";
 export { unfoldOverlappingFolds } from "./view/unfold.js";
 export { paddedVisibleRanges } from "./view/viewport.js";
 export { intervalsOverlap, scrollElementIntoViewIfNeeded } from "./view/scrollport.js";
-export { wysiwygGuards } from "./view/guards/wysiwyg.js";
+export { wysiwygGuards, headingMarkers, maskBackslashRanges } from "./view/guards/wysiwyg.js";
+export { extraLockedRanges } from "./view/guards/locked-ranges.js";
+export { parkSelectionInState } from "./view/guards/park-selection.js";
+export { projectTree } from "./core/tree.js";
+export { findHtmlComments } from "./core/html-comments.js";
+export { findInlineMarks, inlineDelimiterRanges } from "./core/inline-markers.js";
 
 export type {
   CoordRect,

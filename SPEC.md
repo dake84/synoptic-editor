@@ -827,6 +827,11 @@ Deckung.
 | `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
 | `intervalsOverlap(a, b)` · `scrollElementIntoViewIfNeeded(el, opts?, port?)` | rein / DOM — vertikale Sichtbarkeit im Scrollport (G9). |
 | `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. |
+| `projectTree(doc, schema)` | rein — Strukturbäume (I2). |
+| `headingMarkers(doc)` · `maskBackslashRanges(doc, from, to)` · `findHtmlComments(doc, from?, to?)` · `findInlineMarks(doc)` · `inlineDelimiterRanges(marks)` | rein — eine Scanner-Stelle (I6). |
+| `extraLockedRanges` | Facet — Host-Sperren (`ProtectedRange`) in dieselbe Menge (L6/L7). |
+| `parkSelectionInState(state, opts?)` | lesend — L7-Park auf dem aktuellen State (Scanner + `extraLockedRanges`). |
+| `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` | Extension — Host-Widgets auf geschützten Ranges. |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion

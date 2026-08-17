@@ -3,7 +3,9 @@
  *
  * Wysiwyg input escape (SPEC.md L2, L3).
  */
+import { deleteCharBackward } from "@codemirror/commands";
 import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSession } from "../../../src/session.js";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
@@ -98,6 +100,24 @@ id: n0
     });
     expect(session.document).not.toContain("\\#");
 
+    view.destroy();
+  });
+
+  /** @covers L2 */
+  it("maps the caret through an expanded mask-pair Backspace", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const view = new EditorView({
+      parent: host,
+      state: EditorState.create({
+        doc: "\\#",
+        selection: EditorSelection.cursor(2),
+        extensions: [wysiwygGuards({ structureLocked: false })],
+      }),
+    });
+    deleteCharBackward(view);
+    expect(view.state.doc.toString()).toBe("");
+    expect(view.state.selection.main.head).toBe(0);
     view.destroy();
   });
 });
