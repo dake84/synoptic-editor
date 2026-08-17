@@ -1104,7 +1104,7 @@ darf auf Zeit warten (I5).
 | T111 | Backspace an der exklusiven Kante klebt die nächste Überschrift nicht an die vorige Zeile; der Nachbar erscheint nicht im Ausschnitt (§ 11.1.11). |
 | T112 | Select-All-Copy ist auf den Ausschnitt geclippt — Clipboard ist nicht Hide (EX2). |
 | T113 | In `source` ist `##` zwei Zeichen: ein `#` lässt sich einzeln löschen (L1). |
-| **T134** | Nach `##` → `#` an einem Kind bleibt der Parent-Ausschnitt vollständig; `setScope` auf dieselbe Wurzel schneidet ihn nicht ab (EX1/EX6). |
+| **T135** | Nach `##` → `#` an einem Kind bleibt der Parent-Ausschnitt vollständig; `setScope` auf dieselbe Wurzel schneidet ihn nicht ab (EX1/EX6). |
 
 ### Timeline und Dirty
 
