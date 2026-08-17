@@ -6,7 +6,7 @@ import { Facet, type EditorState } from "@codemirror/state";
 import { findChips, type InlineRefStyle } from "../../core/chips.js";
 import { findHtmlComments } from "../../core/html-comments.js";
 import { findInlineMarks, inlineDelimiterRanges } from "../../core/inline-markers.js";
-import { projectTree } from "../../core/tree.js";
+import { frontmatterRanges } from "../../core/tree.js";
 import type { Range, StructureSchema } from "../../core/types.js";
 import { headingMarkers, maskPairs } from "./markers.js";
 
@@ -37,12 +37,7 @@ function chipLocks(doc: string, style: InlineRefStyle): Range[] {
 
 function frontmatterLocks(doc: string, schema: StructureSchema | undefined): Range[] {
   if (!schema) return [];
-  const out: Range[] = [];
-  for (const node of projectTree(doc, schema).nodes.values()) {
-    const fm = node.frontmatter;
-    if (fm && fm.to > fm.from) out.push(fm);
-  }
-  return out;
+  return frontmatterRanges(doc, schema);
 }
 
 /** Scanner-owned wysiwyg locks (not host widgets). */

@@ -83,7 +83,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
         }
         if (k < lines.length) {
           const hLine = lines[k]!;
-          const hm = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(hLine);
+          const hm = /^(#{1,6})[ \t]+(.*)$/.exec(hLine);
           if (hm && !coveredByFence(look, fences)) {
             const depth = hm[1]!.length;
             const rank = rankOf.get(depth);
@@ -114,7 +114,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
       continue;
     }
 
-    const hm = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(line);
+    const hm = /^(#{1,6})[ \t]+(.*)$/.exec(line);
     if (hm && !coveredByFence(lineStart, fences)) {
       const depth = hm[1]!.length;
       const rank = rankOf.get(depth);
@@ -141,6 +141,16 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
     i += 1;
   }
 
+  return out;
+}
+
+/** YAML blocks bound to schema headings (FM1). Orphan fences are not ranges. */
+export function frontmatterRanges(doc: string, schema: StructureSchema): Range[] {
+  const out: Range[] = [];
+  for (const node of projectTree(doc, schema).nodes.values()) {
+    const fm = node.frontmatter;
+    if (fm && fm.to > fm.from) out.push(fm);
+  }
   return out;
 }
 

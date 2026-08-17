@@ -16,6 +16,7 @@
     "scrollElementIntoViewIfNeeded",
     "wysiwygGuards",
     "projectTree",
+    "frontmatterRanges",
     "headingMarkers",
     "maskBackslashRanges",
     "findHtmlComments",

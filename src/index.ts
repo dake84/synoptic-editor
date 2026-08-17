@@ -42,7 +42,7 @@ export { intervalsOverlap, scrollElementIntoViewIfNeeded } from "./view/scrollpo
 export { wysiwygGuards, headingMarkers, maskBackslashRanges } from "./view/guards/wysiwyg.js";
 export { extraLockedRanges } from "./view/guards/locked-ranges.js";
 export { parkSelectionInState } from "./view/guards/park-selection.js";
-export { projectTree } from "./core/tree.js";
+export { projectTree, frontmatterRanges } from "./core/tree.js";
 export { findHtmlComments } from "./core/html-comments.js";
 export { findInlineMarks, inlineDelimiterRanges } from "./core/inline-markers.js";
 

@@ -828,6 +828,7 @@ Deckung.
 | `intervalsOverlap(a, b)` · `scrollElementIntoViewIfNeeded(el, opts?, port?)` | rein / DOM — vertikale Sichtbarkeit im Scrollport (G9). |
 | `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. |
 | `projectTree(doc, schema)` | rein — Strukturbäume (I2). |
+| `frontmatterRanges(doc, schema)` | rein — YAML-Blöcke aus dem Tree (FM1, I6). |
 | `headingMarkers(doc)` · `maskBackslashRanges(doc, from, to)` · `findHtmlComments(doc, from?, to?)` · `findInlineMarks(doc)` · `inlineDelimiterRanges(marks)` | rein — eine Scanner-Stelle (I6). |
 | `extraLockedRanges` | Facet — Host-Sperren (`ProtectedRange`) in dieselbe Menge (L6/L7). |
 | `parkSelectionInState(state, opts?)` | lesend — L7-Park auf dem aktuellen State (Scanner + `extraLockedRanges`). |

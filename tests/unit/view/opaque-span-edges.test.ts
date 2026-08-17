@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { findChips } from "../../../src/core/chips.js";
 import { findInlineMarks, inlineDelimiterRanges } from "../../../src/core/inline-markers.js";
-import { projectTree } from "../../../src/core/tree.js";
+import { frontmatterRanges, projectTree } from "../../../src/core/tree.js";
 import { headingMarkers, maskBackslashRanges, maskPairs } from "../../../src/view/guards/wysiwyg.js";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
 
@@ -45,6 +45,13 @@ describe("opaque span edges — Synoptic scanners", () => {
     const orphan = ["---", "orphan: true", "---", "", "plain prose, no heading", ""].join("\n");
     const orphanTree = projectTree(orphan, FIXTURE_SCHEMA);
     expect([...orphanTree.nodes.values()].every((n) => n.frontmatter === null)).toBe(true);
+    expect(frontmatterRanges(bound, FIXTURE_SCHEMA)).toEqual([node!.frontmatter]);
+    expect(frontmatterRanges(orphan, FIXTURE_SCHEMA)).toEqual([]);
+
+    const husk = ["---", "id: n0", "---", "", "# ", "body", ""].join("\n");
+    const huskFm = frontmatterRanges(husk, FIXTURE_SCHEMA);
+    expect(huskFm).toHaveLength(1);
+    expect(projectTree(husk, FIXTURE_SCHEMA).nodes.get("n0")?.title).toBe("");
   });
 
   /** @covers W7, T125 */
