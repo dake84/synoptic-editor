@@ -628,18 +628,23 @@ export class Session implements PublicSession {
   }
 
   private rebindScope(slot: ViewSlot, scope: ViewScope): void {
+    const sameBinding =
+      slot.scope.nodeId === scope.nodeId && slot.scope.include === scope.include;
     slot.scope = scope;
     slot.ancestry = ancestryOf(this.treeState, scope.nodeId);
     slot.lostNotified = false;
-    const range = renderRangeOf(this.treeState, scope) ?? { from: 0, to: this.document.length };
-    this.sync.dispatchSpecs(slot.id, [
-      {
-        effects: setScopeRange.of({ from: range.from, to: range.to, lost: false }),
-        filter: false,
-        annotations: [Transaction.addToHistory.of(false)],
-      },
-    ]);
-    // Scope heading hide targets the new node (SNH3).
+    if (!sameBinding) {
+      const range = renderRangeOf(this.treeState, scope) ?? { from: 0, to: this.document.length };
+      this.sync.dispatchSpecs(slot.id, [
+        {
+          effects: setScopeRange.of({ from: range.from, to: range.to, lost: false }),
+          filter: false,
+          annotations: [Transaction.addToHistory.of(false)],
+        },
+      ]);
+    }
+    // Scope heading hide targets the new node (SNH3). Same-node rebind keeps
+    // the sticky ScopeRange (EX6) instead of shrinking to a fresh subtreeRange.
     this.refreshChrome(slot);
   }
 

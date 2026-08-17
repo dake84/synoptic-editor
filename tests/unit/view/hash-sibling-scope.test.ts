@@ -54,8 +54,8 @@ describe("source hash sibling scope (#200)", () => {
     document.body.replaceChildren();
   });
 
-  /** @covers EX1 */
-  it.fails("H200: setScope on the same root keeps the child after ## → #", () => {
+  /** @covers EX1, EX6, T134 */
+  it("H200: setScope on the same root keeps the child after ## → #", () => {
     const { session, view } = mountRootSource();
     expect(session.excerpt(view.id)).toContain("Child body");
 

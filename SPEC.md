@@ -239,6 +239,7 @@ Ausschnitt geworfen und ein Geschwister adoptiert; das ist ein Konstruktionsfehl
 | **EX3** | Leert eine View **ihren eigenen** Ausschnitt, bleibt sie gemountet und editierbar. Ein leerer Ausschnitt (`from === to`) nimmt Inserts an diesem Punkt an. Das ist nicht `lost`. |
 | **EX4** | Leert eine **fremde** Änderung (Sync) einen zuvor nicht-leeren Ausschnitt, wird er `lost`. Die Session meldet `scopeLost` **einmal** über `subscribe`. Der Bereich wächst nicht mit späteren Inserts am Kollapspunkt; lokale Edits sind gesperrt; Hide zeigt nichts. Der Host behandelt das wie Schließen (V8) — kein Tab-Chrome in der Komponente. |
 | **EX5** | Ein fehlender Titel darf keinen Nachbarn adoptieren. Kein Geschwister-Fallback bei der initialen Auflösung und kein stilles Umhängen eines `lost`-Ausschnitts. |
+| **EX6** | `setScope` auf dieselbe Node und dasselbe `include` ersetzt `ScopeRange` nicht aus einer neuen `subtreeRange`-Projektion. Der lebende Ausschnitt bleibt der gemappte (EX1). Ein echter Scope-Wechsel (andere Node oder anderes `include`) setzt neu. |
 
 Hide ist Darstellung, nicht Isolation. Isolation ist der Fence (`changeFilter` /
 `transactionFilter` auf `ScopeRange`) plus die eine in-section-Regel, dass die nächste
@@ -1103,6 +1104,7 @@ darf auf Zeit warten (I5).
 | T111 | Backspace an der exklusiven Kante klebt die nächste Überschrift nicht an die vorige Zeile; der Nachbar erscheint nicht im Ausschnitt (§ 11.1.11). |
 | T112 | Select-All-Copy ist auf den Ausschnitt geclippt — Clipboard ist nicht Hide (EX2). |
 | T113 | In `source` ist `##` zwei Zeichen: ein `#` lässt sich einzeln löschen (L1). |
+| **T134** | Nach `##` → `#` an einem Kind bleibt der Parent-Ausschnitt vollständig; `setScope` auf dieselbe Wurzel schneidet ihn nicht ab (EX1/EX6). |
 
 ### Timeline und Dirty
 
