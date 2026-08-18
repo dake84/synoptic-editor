@@ -2,9 +2,9 @@
  * Session: one document, one timeline, many views (SPEC.md § 3, § 7.3, § 11, § 12).
  */
 
-import { EditorSelection, EditorState, Transaction, type Extension } from "@codemirror/state";
+import { EditorSelection, EditorState, Transaction, type ChangeSet, type Extension, type Text } from "@codemirror/state";
 import { Compartment } from "@codemirror/state";
-import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
+import { undo as cmUndo, redo as cmRedo, undoDepth } from "@codemirror/commands";
 import { EditorView, keymap } from "@codemirror/view";
 import { DirtyState } from "./core/dirty.js";
 import { invertChangeSet } from "./core/document.js";
@@ -176,28 +176,21 @@ export class Session implements PublicSession {
       pillFields: opts.policy?.pillFields ?? [],
       inlineRefStyle: opts.policy?.inlineRefStyle ?? "attribute-block",
     };
-    this.sync = createSync(opts.doc);
+    this.sync = createSync(opts.doc, { newGroupDelay: opts.newGroupDelay });
     this.timeline = createTimeline(opts.timeline as TimelineImpl | undefined);
     this.tracked = createTrackedPositionRegistry();
     this.treeState = projectTree(opts.doc, opts.schema);
     this.dirty.markPersisted(opts.doc, this.treeState);
     this.tracked.onInvalidate((id) => this.emit({ type: "tracked", id }));
-    this.sync.afterDocument = (changes, originId, docBefore) => {
+    this.sync.afterDocument = (changes, originId, docBefore, tr) => {
       this.tracked.mapThrough(changes);
       this.treeState = projectTree(this.sync.document, this.schema);
-      if (!this.hushTimeline && originId) {
-        let from = 0;
-        let seen = false;
-        changes.iterChanges((fromA) => {
-          if (!seen) {
-            from = fromA;
-            seen = true;
-          }
-        });
-        const target = nodeAtPosition(projectTree(docBefore.toString(), this.schema), from);
-        this.timeline.pushText(changes, invertChangeSet(docBefore.toString(), changes), {
-          targetNodeId: target?.id,
-        });
+      if (
+        !this.hushTimeline &&
+        originId &&
+        tr.annotation(Transaction.addToHistory) !== false
+      ) {
+        this.recordOriginText(changes, docBefore);
       }
       this.emitScopeLost();
       this.emit({ type: "document" });
@@ -338,6 +331,26 @@ export class Session implements PublicSession {
     return true;
   }
 
+  /** Origin typing: follow CM6 grouping so timeline text entries stay 1:1 with history (U15/U17). */
+  private recordOriginText(changes: ChangeSet, docBefore: Text): void {
+    const inverse = invertChangeSet(docBefore.toString(), changes);
+    const last = this.timeline.peek();
+    if (undoDepth(this.sync.state) === this.timeline.textDepth && last?.kind === "text") {
+      this.timeline.composeLastText(changes, inverse);
+      return;
+    }
+    let from = 0;
+    let seen = false;
+    changes.iterChanges((fromA) => {
+      if (!seen) {
+        from = fromA;
+        seen = true;
+      }
+    });
+    const target = nodeAtPosition(projectTree(docBefore.toString(), this.schema), from);
+    this.timeline.pushText(changes, inverse, { targetNodeId: target?.id });
+  }
+
   undo(): void {
     const entry = this.timeline.peek();
     const result = this.timeline.undo();
@@ -348,7 +361,13 @@ export class Session implements PublicSession {
         state: this.sync.state,
         dispatch: (tr) => this.sync.acceptSession(tr),
       });
-      if (!ok) this.sync.applySession({ changes: result.changes, filter: false });
+      if (!ok) {
+        this.sync.applySession({
+          changes: result.changes,
+          filter: false,
+          annotations: [Transaction.addToHistory.of(false)],
+        });
+      }
       this.hushTimeline = false;
       this.reveal(entry && entry.kind === "text" ? entry.targetNodeId : undefined);
     } else if (entry && entry.kind === "foreign") {
@@ -365,7 +384,13 @@ export class Session implements PublicSession {
         state: this.sync.state,
         dispatch: (tr) => this.sync.acceptSession(tr),
       });
-      if (!ok) this.sync.applySession({ changes: result.changes, filter: false });
+      if (!ok) {
+        this.sync.applySession({
+          changes: result.changes,
+          filter: false,
+          annotations: [Transaction.addToHistory.of(false)],
+        });
+      }
       this.hushTimeline = false;
     }
   }

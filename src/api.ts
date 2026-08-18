@@ -46,6 +46,12 @@ export interface CreateSessionOptions {
   policy?: Policy;
   timeline?: Timeline;
   strings?: Record<string, string>;
+  /**
+   * Idle delay in milliseconds before adjacent typing starts a new undo group.
+   * Passed through to CM6 `history({ newGroupDelay })`. Default 500.
+   * The timeline follows that grouping (U15/U17) — hosts do not keep a second clock.
+   */
+  newGroupDelay?: number;
 }
 
 export interface ViewScope {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyChangeSet, invertChangeSet, makeChangeSet } from "../../../src/core/document.js";
-import { createTimeline } from "../../../src/core/timeline.js";
+import { createTimeline, Timeline } from "../../../src/core/timeline.js";
 
 describe("Timeline", () => {
   /** @covers I3, U1 */
@@ -81,5 +81,27 @@ describe("Timeline", () => {
     tl.clear();
     expect(tl.depth).toBe(0);
     expect(tl.undo()).toBeNull();
+  });
+
+  /** @covers U17 */
+  it("composeLastText joins forward and inverse so one undo restores both inserts", () => {
+    const start = "abc";
+    const f1 = makeChangeSet(start.length, { from: 1, insert: "X" });
+    const mid = applyChangeSet(start, f1);
+    const i1 = invertChangeSet(start, f1);
+    const f2 = makeChangeSet(mid.length, { from: 2, insert: "Y" });
+    const end = applyChangeSet(mid, f2);
+    const i2 = invertChangeSet(mid, f2);
+
+    const timeline = new Timeline();
+    timeline.pushText(f1, i1);
+    timeline.composeLastText(f2, i2);
+
+    expect(timeline.depth).toBe(1);
+    expect(timeline.textDepth).toBe(1);
+    const undo = timeline.undo();
+    expect(undo?.kind).toBe("text");
+    if (undo?.kind !== "text") return;
+    expect(applyChangeSet(end, undo.changes)).toBe(start);
   });
 });

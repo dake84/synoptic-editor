@@ -252,11 +252,12 @@ das Hide außerhalb des Ausschnitts — `skipAtomic` dehnt sonst eine Löschung 
 
 ```
 createSession({
-  doc:       string,
-  schema:    StructureSchema,
-  policy?:   Policy,
-  timeline?: Timeline,        // § 7.3
-  strings?:  Record<string, string>,
+  doc:            string,
+  schema:         StructureSchema,
+  policy?:        Policy,
+  timeline?:      Timeline,        // § 7.3
+  strings?:       Record<string, string>,
+  newGroupDelay?: number,          // § 9 U17; Default 500
 })
 
 StructureSchema = {
@@ -278,6 +279,9 @@ undurchsichtiger Bezeichner für den Host. `grain` einer View ist eine `rank`-An
 `pillFields` wählt, welche Frontmatter-Schlüssel zusätzlich als Pills unter der Überschrift
 erscheinen (P5). Nicht gelistete Schlüssel bleiben nur im Formular (FM7).
 `inlineRefStyle` wählt **eine** Chip-Syntax je Session (W6). Die Styles mischen sich nicht.
+`newGroupDelay` ist die Tipp-Pause in Millisekunden, bevor ein neuer Undo-Schritt beginnt (U17).
+Default 500, wie CM6 `history()`. Der Host darf einen anderen Wert setzen; die Timeline folgt
+der Session-History, nicht einer eigenen Uhr.
 
 **Zur Konfigurierbarkeit von L5/R5:** Strukturbearbeitung in `wysiwyg` zu sperren ist
 **Host-Politik, keine Invariante**. Die Komponente muss sperren *können*; ob sie es tut,
@@ -619,6 +623,7 @@ timeline.push({ apply, revert, reveal? , label? })
 | **U14** | Die CM6-eigene History ist ein *Primitiv*, das die äußere Timeline ansteuert: bei einem Texteintrag ruft sie CM6-Undo (auf dem `SessionEditorState`, § 11.2), bei einem fremden Eintrag dessen `revert`, **ohne** die CM6-History anzufassen. |
 | **U15** | Damit U14 trägt, müssen Texteinträge der Timeline 1:1 und in Reihenfolge auf CM6-History-Schritte abbilden. Deshalb darf nichts sonst in die CM6-History schieben (U2). |
 | **U16** | Bei gemischtem Betrieb ist **jeder Undo-Eintrittspunkt an genau eine Timeline gebunden** — üblicherweise über die fokussierte Oberfläche. Kein Erraten, welcher Stack gemeint ist. |
+| **U17** | Aufeinanderfolgende Textänderungen, die die Session-`history()` zusammenfasst, sind **ein** Timeline-Texteintrag (U15). Die Pause ist `newGroupDelay` an `createSession`, in Millisekunden. Ohne Angabe gilt 500 (CM6-Default). Die Timeline hält keine zweite Uhr — sie folgt `undoDepth` der Session-History. Tests setzen `Transaction.time` und warten nicht (I5). |
 
 Damit ist die globale Zeitachse Host-weit, ohne dass fremde Domänen in den Markdown-Puffer
 gezwungen werden (Domänenfreiheit, § 1).
@@ -834,7 +839,7 @@ Deckung.
 
 | Signatur | Art |
 | -------- | --- |
-| `createSession({ doc, schema, policy?, timeline?, strings? })` | Session |
+| `createSession({ doc, schema, policy?, timeline?, strings?, newGroupDelay? })` | Session |
 | `createTimeline()` | Timeline — Host erzeugt sie, wenn er Einträge schieben oder eine Zeitachse teilen will (U12/U13). Ohne Argument legt `createSession` eine eigene an. |
 | `findChips(doc, from?, to?, style?)` | rein — Chip-Spans für `attribute-block` / `html-ref` (I6, § 8.3). Eine Scanner-Stelle für Host und Komponente. |
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
@@ -1245,6 +1250,7 @@ darf auf Zeit warten (I5).
 | T105 | `replaceDocument` meldet alle TrackedPositions als ungültig, entfernt aber keine (TP8/U7). |
 | T106 | TrackedPositions werden auch dann abgebildet, wenn **keine einzige View** montiert ist (§ 3.4). |
 | T91 | Verschränkte Timeline: Undo eines fremden Eintrags ruft dessen `revert` und lässt die CM6-History unangetastet; der nächste Undo trifft den davor liegenden Texteintrag (U14/U15). |
+| **T149** | Zwei benachbarte `input.type`-Einfügungen innerhalb von `newGroupDelay` → ein Undo stellt beide wieder her. Nach einer Zeitlücke ≥ Delay (über `Transaction.time`, ohne Warten) ist die nächste Einfügung ein zweiter Schritt. Ein gesetztes `newGroupDelay` (z. B. 200) gilt (U17). |
 
 ### Widgets
 

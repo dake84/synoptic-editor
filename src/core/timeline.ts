@@ -1,5 +1,5 @@
 /**
- * Single timeline per session (SPEC.md I3, U1–U4, U9–U15).
+ * Single timeline per session (SPEC.md I3, U1–U4, U9–U17).
  * View reveal (U5) is out of scope for the headless core — callers handle document apply.
  */
 
@@ -54,6 +54,15 @@ export class Timeline {
     return this.entries.length - this.next;
   }
 
+  /** Count of text entries in the done portion (U15/U17). */
+  get textDepth(): number {
+    let n = 0;
+    for (let i = 0; i < this.next; i++) {
+      if (this.entries[i]!.kind === "text") n += 1;
+    }
+    return n;
+  }
+
   peek(): TimelineEntry | undefined {
     return this.next > 0 ? this.entries[this.next - 1] : undefined;
   }
@@ -81,6 +90,20 @@ export class Timeline {
 
   pushForeign(command: ForeignTimelineCommand): void {
     this.push({ kind: "foreign", command });
+  }
+
+  /**
+   * Fold a CM6-merged change into the last done text entry (U17).
+   * Inverse is against the document *after* this step, composed onto the group's inverse.
+   */
+  composeLastText(forward: ChangeSet, inverse: ChangeSet): void {
+    const last = this.peek();
+    if (!last || last.kind !== "text") {
+      throw new Error("composeLastText requires a text tip");
+    }
+    this.entries = this.entries.slice(0, this.next);
+    last.forward = last.forward.compose(forward);
+    last.inverse = inverse.compose(last.inverse);
   }
 
   /** Undo last entry. Caller applies returned text ChangeSet to the document. */
