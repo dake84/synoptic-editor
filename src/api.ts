@@ -124,6 +124,12 @@ export interface ViewHandle {
   getState(): ViewRestoreState;
   setScope(nodeId: string, opts?: { include?: IncludeMode }): void;
   setPresentation(p: Presentation): void;
+  /**
+   * Capture the reading-line document offset into `scrollAt` and freeze it
+   * until the next `setPresentation` (V11). Host CSS/plugin layout must not
+   * run before this call.
+   */
+  freezeScrollAnchor(): void;
   setGrain(rank: number): void;
   /** Toggle scope-heading visibility in wysiwyg (SNH3). No remount. */
   setShowNodeHeading(show: boolean): void;
@@ -133,7 +139,8 @@ export interface ViewHandle {
   reveal(from: number, to: number, cause: string): void;
   /**
    * Replace named host plugins (same rules as `createView`). Reconfigures
-   * chrome; does not remount or clear history (I3/U8).
+   * chrome unless `scrollAt` is frozen pending `setPresentation` (V11).
+   * Does not remount or clear history (I3/U8).
    */
   setPlugins(plugins: PluginContribution[]): void;
   /**
@@ -159,7 +166,7 @@ export interface ViewHandle {
   findPrev(): SearchHit | null;
   replace(hitId: string, text: string): void;
   replaceAll(text: string, opts?: { classes?: SearchHitClass[] }): ReplaceAllResult;
-  focus(): void;
+  focus(opts?: { preventScroll?: boolean }): void;
 }
 
 /** Session contract (SPEC.md § 12). */

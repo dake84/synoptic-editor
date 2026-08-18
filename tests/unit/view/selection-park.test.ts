@@ -5,7 +5,6 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { createSession } from "../../../src/session.js";
-import { bodyBlockStarts, blockIndexAtOffset } from "../../../src/core/block-offsets.js";
 import { readingLinePos } from "../../../src/view/scroll.js";
 import { synopticLockedRanges } from "../../../src/view/guards/locked-ranges.js";
 import { parkSelection } from "../../../src/view/guards/park-selection.js";
@@ -74,7 +73,7 @@ describe("selection park (L7)", () => {
   });
 
   /** @covers L7, V11 */
-  it("keeps the block-start scroll anchor across source↔wysiwyg (#150)", () => {
+  it("keeps the reading-line offset across source↔wysiwyg (#150)", () => {
     const session = createSession({ doc: DOC, schema: FIXTURE_SCHEMA });
     const view = session.createView({
       scope: { nodeId: "n0", include: "own" },
@@ -83,14 +82,26 @@ describe("selection park (L7)", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     view.mount(host);
+    const ev = view.editorView()!;
     const bodyAt = DOC.indexOf("Body with");
-    view.editorView()!.dispatch({ selection: EditorSelection.single(bodyAt) });
-    const before = readingLinePos(view.editorView()!);
-    const starts = bodyBlockStarts(DOC);
-    const blockBefore = blockIndexAtOffset(starts, before);
+    ev.dispatch({ selection: EditorSelection.single(bodyAt) });
+    const before = readingLinePos(ev);
+    let restored: number | null = null;
+    const dispatch = ev.dispatch.bind(ev);
+    ev.dispatch = ((...args: Parameters<EditorView["dispatch"]>) => {
+      const spec = args[0] as { effects?: unknown };
+      if (spec && typeof spec === "object" && spec.effects) {
+        const list = Array.isArray(spec.effects) ? spec.effects : [spec.effects];
+        for (const effect of list) {
+          const range = (effect as { value?: { range?: { from?: number } } }).value?.range;
+          if (typeof range?.from === "number") restored = range.from;
+        }
+      }
+      return dispatch(...args);
+    }) as EditorView["dispatch"];
     view.setPresentation("wysiwyg");
-    const after = readingLinePos(view.editorView()!);
-    expect(blockIndexAtOffset(starts, after)).toBe(blockBefore);
+    ev.dispatch = dispatch;
+    expect(restored).toBe(before);
   });
 
   /** @covers L7, T142 */

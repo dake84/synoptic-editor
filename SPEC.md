@@ -155,7 +155,7 @@ Komponente kennt keinen Pin. In `source` ist die Option wirkungslos.
 | **SNH2** | `showNodeHeading: false` in `wysiwyg`: die Heading-Range des Scope-Knotens (`TreeNode.heading`, inkl. folgendem Newline) ist ausgeblendet und nicht per Caret erreichbar. Kind-Überschriften im Ausschnitt bleiben sichtbar und editierbar. |
 | **SNH3** | `setScope` / `setShowNodeHeading` aktualisieren die Ausblendung ohne Remount und ohne Timeline-Eintrag (wie `setGrain`). |
 | **SNH4** | Die ausgeblendete Scope-Überschrift nimmt an der Wysiwyg-Suche nicht teil (F4); in `source` bleibt sie suchbar (F5). |
-| **V11** | Der Scroll-Anker zwischen Presentations ist ein Dokument-Offset, nie ein Pixelwert (V3). `bodyBlockStarts` liefert die Start-Offsets der sichtbaren Rumpf-Blöcke nach Überschrift und angrenzendem Frontmatter; HTML-Kommentare sind keine Blöcke. `blockIndexAtOffset` mappt eine Position auf den letzten Start bei oder vor ihr, oder −1 wenn die Position vor dem ersten Block liegt. |
+| **V11** | Der Scroll-Anker zwischen Presentations ist der Dokument-Offset der Leselinie im `scrollPort` (`lineBlockAtHeight(scrollTop).from`), nie ein Pixelwert (V3) und nie ein Absatzindex. `view.freezeScrollAnchor()` schreibt diesen Offset nach `scrollAt` und friert ihn: Measure überschreibt `scrollAt` nicht, `setPlugins` rekonfiguriert das Chrome nicht. `setPresentation` stellt den gefrorenen Offset mit `scrollToPos(..., "presentation")` wieder her (`y: "start"`) und taut auf. Ohne Freeze misst `setPresentation` die Leselinie unmittelbar vor dem Chrome-Wechsel. Der Caret bleibt die Selektion und zieht den Viewport nicht (V4, L7 ohne Scroll). |
 
 ### 3.4 TrackedPosition
 
@@ -839,7 +839,6 @@ Deckung.
 | `findChips(doc, from?, to?, style?)` | rein — Chip-Spans für `attribute-block` / `html-ref` (I6, § 8.3). Eine Scanner-Stelle für Host und Komponente. |
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
 | `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
-| `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
 | `findInDocument(doc, opts)` | rein — Trefferliste eines Documents (§ 10). `opts` trägt Presentation, Range, Schema und `FindMatchOptions` (`caseSensitive`, `regex`). |
 | `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
 | `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
@@ -894,19 +893,20 @@ steht.
 | `view.mount(el)` · `view.destroy()` | Lebenszyklus |
 | `view.getState()` | lesend — Wiederherstellungszustand mit TrackedPositions (§ 3.5) |
 | `view.setScope(nodeId, { include: 'own' \| 'subtree' })` | Kommando — Umfang (§ 3.1) |
-| `view.setPresentation(p)` · `setGrain(rank)` · `setShowNodeHeading(show)` | Kommando |
+| `view.setPresentation(p)` · `setGrain(rank)` · `setShowNodeHeading(show)` | Kommando — `setPresentation` stellt `scrollAt` wieder her (V11) |
+| `view.freezeScrollAnchor()` | Kommando — Leselinie nach `scrollAt` frieren, bevor der Host das Layout kippt (V11) |
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.reveal(from, to, cause)` | Kommando — Range in den Viewport (Find-Offsets); `cause` Pflicht (I4) |
-| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8; ADR 0015) |
-| `view.setExtensions(extensions, presentationExtensions?)` | **deprecated** — Prefer `setPlugins` |
+| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8; ADR 0015). Solange `scrollAt` gefroren ist, nur Bags schreiben, kein Chrome (V11) |
+| `view.setExtensions(extensions, presentationExtensions?)` | **deprecated** — Prefer `setPlugins`. Solange `scrollAt` gefroren ist, nur Bags, kein Chrome (V11). |
 | `view.coords(from, to)` | lesend — Box relativ zum Scrollport (§ 12.1); `null` wenn ungemountet oder Position ungültig |
 | `view.scrollPort` | lesend — Scroll-Owner-Element (I4) oder `null` wenn ungemountet |
 | `view.visibleNode` | lesend |
 | `view.find(query, { mode: 'view' \| 'document', activate?: boolean, caseSensitive?: boolean, regex?: boolean })` | Kommando (§ 10.1) → `SearchHit[]`. `activate: false` malt Treffer ohne Scroll/Selektion (Suchleiste beim Tippen). Default: nicht case-sensitive, literal (F12/F13). |
 | `view.findNext()` · `view.findPrev()` | Kommando — aktiver Treffer (F3/F10) → `SearchHit \| null` |
 | `view.replace(hitId, text)` · `view.replaceAll(text, { classes })` | Kommando (§ 10.3) |
-| `view.focus()` | Kommando |
+| `view.focus(opts?)` | Kommando — `opts.preventScroll` lässt den Viewport unbewegt (I4, V11) |
 
 ### Timeline
 
@@ -1273,6 +1273,8 @@ darf auf Zeit warten (I5).
 | - | ---- | ---------- |
 | **T126** | Ungemountet: `scrollPort` ist `null`, `coords(0, 0)` ist `null` (G6). Nach `mount` ist `scrollPort` das CM6-`scrollDOM`; `coords` für eine gültige Range liefert eine Box mit `bottom ≥ top` und `right ≥ left` (G4/G5). | Vertrag für Overlay ohne `EditorView`-Leak |
 | **T127** | `coords` liegt relativ zum Scrollport inkl. Scroll-Offset: nach programmatischem Scroll ändert sich die Box konsistent mit `scrollTop` (G4); Persistenz bleibt TrackedPosition, nicht Pixel (V3). | Overlay wandert mit dem Text |
+| **T147** | `freezeScrollAnchor` dann Viewport auf 0, dann `setPresentation`: der Restore-Dispatch trägt den gefrorenen Offset, nicht den Offset bei `scrollTop` 0 (V11). Ohne Freeze stellt `setPresentation` die Leselinie von unmittelbar vor dem Chrome-Wechsel wieder her. Measure überschreibt `scrollAt` nicht, solange gefroren. | Host-CSS darf nicht zwischenmessen |
+| **T148** | `freezeScrollAnchor`, dann `setPlugins` mit Source-Gutter: DOM hat noch keinen Gutter; nach `setPresentation` ist der Gutter da. Ein `setPlugins` ohne Freeze zeigt den Gutter sofort (V11). | Ein Chrome pro Umschaltung |
 
 ### Scope-Überschrift (`showNodeHeading`)
 

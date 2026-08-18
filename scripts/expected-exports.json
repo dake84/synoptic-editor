@@ -8,8 +8,6 @@
     "setHeadingLevel",
     "insertListPrefix",
     "toggleWrapSelection",
-    "bodyBlockStarts",
-    "blockIndexAtOffset",
     "unfoldOverlappingFolds",
     "paddedVisibleRanges",
     "intervalsOverlap",

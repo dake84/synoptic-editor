@@ -115,6 +115,7 @@ interface ViewSlot {
   hostExtensions: Extension[];
   presentationExtensions: Partial<Record<Presentation, Extension[]>>;
   handle: ViewHandle;
+  scrollFrozen: boolean;
 }
 
 function renderRangeOf(tree: Tree, scope: ViewScope): Range | null {
@@ -452,6 +453,7 @@ export class Session implements PublicSession {
       hostExtensions: fromPlugins?.host ?? opts.extensions ?? [],
       presentationExtensions: fromPlugins?.presentation ?? opts.presentationExtensions ?? {},
       handle: this.makeHandle(id),
+      scrollFrozen: false,
     };
     this.views.set(id, slot);
     const caret = this.caretForOpen(slot);
@@ -739,17 +741,31 @@ export class Session implements PublicSession {
       },
       setPresentation(p: Presentation) {
         const slot = session.requireSlot(id);
-        slot.presentation = p;
         const ev = session.sync.editorView(id);
-        const pos = ev ? readingLinePos(ev, viewRange(ev.state)) : session.tracked.get(slot.scrollAt)?.from;
-        if (ev) session.captureScroll(slot, ev);
-        session.refreshChrome(slot);
+        const presentationChanged = slot.presentation !== p;
+        const pos = slot.scrollFrozen
+          ? session.tracked.get(slot.scrollAt)?.from
+          : ev
+            ? readingLinePos(ev, viewRange(ev.state))
+            : session.tracked.get(slot.scrollAt)?.from;
+        if (ev && !slot.scrollFrozen) session.captureScroll(slot, ev);
+        slot.presentation = p;
+        if (slot.scrollFrozen || presentationChanged) {
+          session.refreshChrome(slot);
+        }
         const again = session.sync.editorView(id);
-        if (again && pos != null) {
+        if (again && pos != null && (slot.scrollFrozen || presentationChanged)) {
           slot.lastScrollCause = "presentation";
           scrollToPos(again, pos, "presentation");
         }
+        slot.scrollFrozen = false;
         session.emit({ type: "views" });
+      },
+      freezeScrollAnchor() {
+        const slot = session.requireSlot(id);
+        const ev = session.sync.editorView(id);
+        if (ev) session.captureScroll(slot, ev);
+        slot.scrollFrozen = true;
       },
       setGrain(rank: number) {
         const slot = session.requireSlot(id);
@@ -813,13 +829,13 @@ export class Session implements PublicSession {
         const slot = session.requireSlot(id);
         slot.hostExtensions = bags.host;
         slot.presentationExtensions = bags.presentation;
-        session.refreshChrome(slot);
+        if (!slot.scrollFrozen) session.refreshChrome(slot);
       },
       setExtensions(extensions, presentationExtensions) {
         const slot = session.requireSlot(id);
         slot.hostExtensions = extensions;
         if (presentationExtensions) slot.presentationExtensions = presentationExtensions;
-        session.refreshChrome(slot);
+        if (!slot.scrollFrozen) session.refreshChrome(slot);
       },
       coords(from: number, to: number) {
         const ev = session.sync.editorView(id);
@@ -934,9 +950,11 @@ export class Session implements PublicSession {
         slot.findActive = -1;
         return { prose: plan.prose, metadata: plan.metadata, rejected: plan.rejected };
       },
-      focus() {
+      focus(opts?: { preventScroll?: boolean }) {
         session.focused = id;
-        session.sync.editorView(id)?.focus();
+        const ev = session.sync.editorView(id);
+        if (opts?.preventScroll) ev?.contentDOM.focus({ preventScroll: true });
+        else ev?.focus();
         session.emit({ type: "focus", viewId: id });
       },
       /** Test/harness only — not on the public ViewHandle (SPEC § 12). */
@@ -1066,6 +1084,7 @@ export class Session implements PublicSession {
   }
 
   private captureScroll(slot: ViewSlot, ev: EditorView): void {
+    if (slot.scrollFrozen) return;
     const rec = this.tracked.get(slot.scrollAt);
     if (!rec) return;
     const pos = readingLinePos(ev, viewRange(ev.state));
