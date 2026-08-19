@@ -7,7 +7,7 @@ import { Compartment } from "@codemirror/state";
 import { undo as cmUndo, redo as cmRedo, undoDepth } from "@codemirror/commands";
 import { EditorView, keymap } from "@codemirror/view";
 import { DirtyState } from "./core/dirty.js";
-import { invertChangeSet } from "./core/document.js";
+import { invertChangeSet, makeChangeSet } from "./core/document.js";
 import { planFieldWrite, wouldBreakYamlValue } from "./core/frontmatter.js";
 import {
   findInDocument,
@@ -333,6 +333,22 @@ export class Session implements PublicSession {
     this.hushTimeline = false;
     this.timeline.pushText(plan.changes, invertChangeSet(before, plan.changes), {
       targetNodeId: plan.targetNodeId,
+    });
+    return true;
+  }
+
+  applyDocumentPatch(nextDoc: string, targetNodeId?: string): boolean {
+    const before = this.document;
+    if (before === nextDoc) return false;
+    const changes = makeChangeSet(before.length, { from: 0, to: before.length, insert: nextDoc });
+    this.hushTimeline = true;
+    this.sync.applySession({
+      changes,
+      filter: false,
+    });
+    this.hushTimeline = false;
+    this.timeline.pushText(changes, invertChangeSet(before, changes), {
+      targetNodeId: targetNodeId ?? this.treeState.roots[0],
     });
     return true;
   }

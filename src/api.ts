@@ -194,6 +194,8 @@ export interface Session {
   undo(): void;
   redo(): void;
   apply(action: StructureAction): boolean;
+  /** Replace session document in one undoable step (unlike replaceDocument). */
+  applyDocumentPatch(nextDoc: string, targetNodeId?: string): boolean;
   markPersisted(nodeId?: string): void;
   replaceDocument(doc: string): void;
   subscribe(fn: (e: SessionEvent) => void): () => void;
