@@ -38,6 +38,7 @@ src/
   api.ts                   öffentliche Typen (§ 12)
   theme.css                Widget-Klassen für Hosts
   index.ts                 öffentliche API (§ 12) — einziger Exportpunkt für Hosts
+  debug.ts                 Debug-Inspektion (`synoptic-editor/debug`) — nicht § 12
 
 examples/
   host/                    Beispiel-Host; importiert nur `src/index.ts`

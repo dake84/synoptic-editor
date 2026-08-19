@@ -21,6 +21,11 @@
       "import": "./dist/cm.js",
       "default": "./dist/cm.js"
     },
+    "./debug": {
+      "types": "./src/debug.ts",
+      "import": "./dist/debug.js",
+      "default": "./dist/debug.js"
+    },
     "./theme.css": "./src/theme.css"
   },
   "files": [

@@ -835,6 +835,10 @@ Test-/Harness-Hilfen (`excerpt`, `dispatch`, `relations`, `editorView`, …). Ne
 erfordern eine Änderung dieser Sektion; `scripts/check-export-surface.mjs` erzwingt die
 Deckung.
 
+**Debug, nicht Vertrag.** `synoptic-editor/debug` (`inspectDirty`) liest Baseline- vs.
+Current-Text (D1/D2) für Host-Dev-Tools. Kein §-12-Export; Produktions-Hosts importieren
+das Subpath nicht. `check-export-surface` prüft nur `src/index.ts`.
+
 ### Fabriken
 
 | Signatur | Art |

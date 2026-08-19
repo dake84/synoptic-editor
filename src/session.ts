@@ -181,6 +181,12 @@ export class Session implements PublicSession {
     this.tracked = createTrackedPositionRegistry();
     this.treeState = projectTree(opts.doc, opts.schema);
     this.dirty.markPersisted(opts.doc, this.treeState);
+    if (process.env.NODE_ENV !== "production") {
+      Object.defineProperty(this, Symbol.for("synoptic.debug.inspectDirty"), {
+        enumerable: false,
+        value: () => this.dirty.inspect(this.document, this.treeState),
+      });
+    }
     this.tracked.onInvalidate((id) => this.emit({ type: "tracked", id }));
     this.sync.afterDocument = (changes, originId, docBefore, tr) => {
       this.tracked.mapThrough(changes);
