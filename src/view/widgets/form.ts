@@ -12,6 +12,7 @@ import {
   buildHiddenFrontmatterDecorations,
   clipFrontmatterZones,
 } from "../frontmatter-hide.js";
+import { hostBlockReplaceRanges, overlapsHostBlockReplace } from "../host-block-replace.js";
 
 export type FrontmatterMode = "form" | "hidden";
 
@@ -123,8 +124,11 @@ function buildFrontmatterDecos(
 ): DecorationSet {
   if (range.lost) return Decoration.none;
   const doc = state.doc.toString();
+  const hostOwned = state.facet(hostBlockReplaceRanges);
   if (mode === "hidden") {
-    const zones = clipFrontmatterZones(hiddenFrontmatterRanges(doc, schema), range.from, range.to);
+    const zones = clipFrontmatterZones(hiddenFrontmatterRanges(doc, schema), range.from, range.to).filter(
+      (z) => !overlapsHostBlockReplace(z, hostOwned),
+    );
     return buildHiddenFrontmatterDecorations(state, zones);
   }
   const tree = projectTree(doc, schema);
@@ -135,6 +139,7 @@ function buildFrontmatterDecos(
   for (const node of nodes) {
     const fm = node.frontmatter!;
     if (fm.to <= range.from || fm.from >= range.to) continue;
+    if (overlapsHostBlockReplace(fm, hostOwned)) continue;
     const from = Math.max(fm.from, range.from);
     const to = Math.min(fm.to, range.to);
     if (from >= to) continue;
@@ -164,7 +169,17 @@ export function frontmatterField(
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
-      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
+      const hostChanged =
+        tr.state.facet(hostBlockReplaceRanges) !== tr.startState.facet(hostBlockReplaceRanges);
+      if (
+        !tr.docChanged &&
+        r.from === prev.from &&
+        r.to === prev.to &&
+        r.lost === prev.lost &&
+        !hostChanged
+      ) {
+        return value;
+      }
       return buildFrontmatterDecos(tr.state, r, schema, mode);
     },
     provide: (field) => EditorView.decorations.from(field),

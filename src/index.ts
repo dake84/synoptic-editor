@@ -33,6 +33,11 @@ export {
   setProtectedActiveMatch,
 } from "./view/widgets/protected.js";
 export type { ProtectedRange, ProtectedWidgetFactory } from "./view/widgets/protected.js";
+export {
+  coveredByHostBlockReplace,
+  hostBlockReplaceRanges,
+  overlapsHostBlockReplace,
+} from "./view/host-block-replace.js";
 
 export { findChips } from "./core/chips.js";
 export type { ChipSpan } from "./core/chips.js";

@@ -444,6 +444,10 @@ nicht als Rohtext erreichbar. `policy.frontmatterInWysiwyg` entscheidet die Dars
 | `form` (Default) | Block-Widget mit Formularfeldern je Schlüssel |
 | `hidden` | vollständig unsichtbar |
 
+Host-Block-Replace über dieselbe Spanne (Facet `hostBlockReplaceRanges`, z. B. Marli
+FM+ATX-Chrome) unterdrückt Form/Hide auf überlappenden Zonen — keine zweite
+`Decoration.replace` (I6).
+
 | # | Regel |
 | - | ----- |
 | **FM1** | Der Rohtext des Blocks ist in `wysiwyg` nicht per Caret erreichbar und nicht direkt editierbar. |
@@ -869,7 +873,8 @@ das Subpath nicht. `check-export-surface` prüft nur `src/index.ts`.
 | `extraLockedParkFilter()` | Extension — nur L7-Park der Extra-Ranges, ohne Edit-Sperre/Atom (wenn die schon von `extraLockedGuards({ park: false })` kommen). |
 | `hostWriteAnnotation` | Annotation — L5-Bypass der Extra-Sperren (Host-Schreibvorgänge). |
 | `parkSelectionInState(state, opts?)` | lesend — L7-Park auf dem aktuellen State (Scanner + `extraLockedRanges`). |
-| `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` | Extension — Host-Widgets auf geschützten Ranges (`block: true` Replace). |
+| `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` · `protectedDecorationField` · `protectedActiveMatchField` · `setProtectedActiveMatch` | Extension / Effect — Host-Widgets auf geschützten Ranges (`block: true` Replace); Find-Highlight im Widget. |
+| `hostBlockReplaceRanges` · `overlapsHostBlockReplace` · `coveredByHostBlockReplace` | Facet / rein — Host-Block-Replace-Spannen; Session-FM-Hide/Form und Marker-Hide überspringen überlappende Zonen (I6). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion

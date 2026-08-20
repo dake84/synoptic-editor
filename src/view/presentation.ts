@@ -17,6 +17,7 @@ import {
 import { projectTree } from "../core/tree.js";
 import type { StructureSchema } from "../core/types.js";
 import { headingMarkers, maskBackslashRanges, maskPairs, snapOutOfHeadingMarkers } from "./guards/wysiwyg.js";
+import { coveredByHostBlockReplace, hostBlockReplaceRanges } from "./host-block-replace.js";
 import { type ScopeRange } from "./scope.js";
 
 export type Presentation = "source" | "wysiwyg";
@@ -99,6 +100,7 @@ function buildWysiwygDecorations(
   from: number,
   to: number,
   hideHeading?: { from: number; to: number } | null,
+  hostOwned: readonly { from: number; to: number }[] = [],
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   if (from > 0) builder.add(0, from, hideRange);
@@ -109,11 +111,14 @@ function buildWysiwygDecorations(
   if (hideFrom >= 0 && hideTo > hideFrom && hideFrom < to && hideTo > from) {
     const hf = Math.max(hideFrom, from);
     const ht = Math.min(hideTo, to);
-    if (ht > hf) inlines.push({ from: hf, to: ht, deco: hideMarker });
+    if (ht > hf && !coveredByHostBlockReplace({ from: hf, to: ht }, hostOwned)) {
+      inlines.push({ from: hf, to: ht, deco: hideMarker });
+    }
   }
   for (const r of headingMarkers(doc)) {
     if (r.from < from || r.to > to) continue;
     if (hideFrom >= 0 && r.from >= hideFrom && r.to <= hideTo) continue;
+    if (coveredByHostBlockReplace(r, hostOwned)) continue;
     if (overlapsAny(r, comments)) continue;
     if (r.to > r.from) inlines.push({ from: r.from, to: r.to, deco: hideMarker });
   }
@@ -286,16 +291,38 @@ export function wysiwygDecorationField(
       const r = state.field(rangeField);
       return r.lost
         ? hideAll(doc)
-        : buildWysiwygDecorations(doc, r.from, r.to, resolveScopeHeadingHide(doc, hideOpts));
+        : buildWysiwygDecorations(
+            doc,
+            r.from,
+            r.to,
+            resolveScopeHeadingHide(doc, hideOpts),
+            state.facet(hostBlockReplaceRanges),
+          );
     },
     update(_value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
-      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return _value;
+      const hostChanged =
+        tr.state.facet(hostBlockReplaceRanges) !== tr.startState.facet(hostBlockReplaceRanges);
+      if (
+        !tr.docChanged &&
+        r.from === prev.from &&
+        r.to === prev.to &&
+        r.lost === prev.lost &&
+        !hostChanged
+      ) {
+        return _value;
+      }
       const doc = tr.state.doc.toString();
       return r.lost
         ? hideAll(doc)
-        : buildWysiwygDecorations(doc, r.from, r.to, resolveScopeHeadingHide(doc, hideOpts));
+        : buildWysiwygDecorations(
+            doc,
+            r.from,
+            r.to,
+            resolveScopeHeadingHide(doc, hideOpts),
+            tr.state.facet(hostBlockReplaceRanges),
+          );
     },
     provide: (field) => EditorView.decorations.from(field),
   });
