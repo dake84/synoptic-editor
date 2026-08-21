@@ -1,5 +1,5 @@
 /**
- * Host-owned block-replace ranges (e.g. Marli FM+ATX protected chrome).
+ * Host-owned block-replace ranges (e.g. host FM+ATX protected chrome).
  *
  * When a host `Decoration.replace({ block: true })` covers a heading unit,
  * Synoptic must not also replace overlapping spans (FM hide/form, ATX marker

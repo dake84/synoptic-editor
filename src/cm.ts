@@ -35,6 +35,8 @@ export {
   GutterMarker,
   ViewPlugin,
   WidgetType,
+  activateHover,
+  closeHoverTooltips,
   gutter,
   hoverTooltip,
   keymap,
