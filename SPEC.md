@@ -155,7 +155,7 @@ Komponente kennt keinen Pin. In `source` ist die Option wirkungslos.
 | **SNH2** | `showNodeHeading: false` in `wysiwyg`: die Heading-Range des Scope-Knotens (`TreeNode.heading`, inkl. folgendem Newline) ist ausgeblendet und nicht per Caret erreichbar. Kind-Überschriften im Ausschnitt bleiben sichtbar und editierbar. |
 | **SNH3** | `setScope` / `setShowNodeHeading` aktualisieren die Ausblendung ohne Remount und ohne Timeline-Eintrag (wie `setGrain`). |
 | **SNH4** | Die ausgeblendete Scope-Überschrift nimmt an der Wysiwyg-Suche nicht teil (F4); in `source` bleibt sie suchbar (F5). |
-| **V11** | Der Scroll-Anker zwischen Presentations ist ein Dokument-Offset, nie ein Pixelwert (V3). `bodyBlockStarts` liefert die Start-Offsets der sichtbaren Rumpf-Blöcke nach Überschrift und angrenzendem Frontmatter; HTML-Kommentare sind keine Blöcke. `blockIndexAtOffset` mappt eine Position auf den letzten Start bei oder vor ihr, oder −1 wenn die Position vor dem ersten Block liegt. |
+| **V11** | Der Scroll-Anker zwischen Presentations ist der Dokument-Offset der Leselinie im `scrollPort` (`lineBlockAtHeight(scrollTop).from`), nie ein Pixelwert (V3) und nie ein Absatzindex. `view.freezeScrollAnchor()` schreibt diesen Offset nach `scrollAt` und friert ihn: Measure überschreibt `scrollAt` nicht, `setPlugins` rekonfiguriert das Chrome nicht. `setPresentation` stellt den gefrorenen Offset mit `scrollToPos(..., "presentation")` wieder her (`y: "start"`) und taut auf. Ohne Freeze misst `setPresentation` die Leselinie unmittelbar vor dem Chrome-Wechsel. Der Caret bleibt die Selektion und zieht den Viewport nicht (V4, L7 ohne Scroll). |
 
 ### 3.4 TrackedPosition
 
@@ -239,6 +239,7 @@ Ausschnitt geworfen und ein Geschwister adoptiert; das ist ein Konstruktionsfehl
 | **EX3** | Leert eine View **ihren eigenen** Ausschnitt, bleibt sie gemountet und editierbar. Ein leerer Ausschnitt (`from === to`) nimmt Inserts an diesem Punkt an. Das ist nicht `lost`. |
 | **EX4** | Leert eine **fremde** Änderung (Sync) einen zuvor nicht-leeren Ausschnitt, wird er `lost`. Die Session meldet `scopeLost` **einmal** über `subscribe`. Der Bereich wächst nicht mit späteren Inserts am Kollapspunkt; lokale Edits sind gesperrt; Hide zeigt nichts. Der Host behandelt das wie Schließen (V8) — kein Tab-Chrome in der Komponente. |
 | **EX5** | Ein fehlender Titel darf keinen Nachbarn adoptieren. Kein Geschwister-Fallback bei der initialen Auflösung und kein stilles Umhängen eines `lost`-Ausschnitts. |
+| **EX6** | `setScope` auf dieselbe Node und dasselbe `include` ersetzt `ScopeRange` nicht aus einer neuen `subtreeRange`-Projektion. Der lebende Ausschnitt bleibt der gemappte (EX1). Ein echter Scope-Wechsel (andere Node oder anderes `include`) setzt neu. |
 
 Hide ist Darstellung, nicht Isolation. Isolation ist der Fence (`changeFilter` /
 `transactionFilter` auf `ScopeRange`) plus die eine in-section-Regel, dass die nächste
@@ -251,11 +252,12 @@ das Hide außerhalb des Ausschnitts — `skipAtomic` dehnt sonst eine Löschung 
 
 ```
 createSession({
-  doc:       string,
-  schema:    StructureSchema,
-  policy?:   Policy,
-  timeline?: Timeline,        // § 7.3
-  strings?:  Record<string, string>,
+  doc:            string,
+  schema:         StructureSchema,
+  policy?:        Policy,
+  timeline?:      Timeline,        // § 7.3
+  strings?:       Record<string, string>,
+  newGroupDelay?: number,          // § 9 U17; Default 500
 })
 
 StructureSchema = {
@@ -265,6 +267,7 @@ StructureSchema = {
 
 Policy = {
   structureEditingInWysiwyg?: 'locked' | 'allowed',   // Default 'locked'
+  headingEditingInWysiwyg?:   'inline' | 'locked',    // Default 'inline' (L4); 'locked' → LH1–LH3
   frontmatterInWysiwyg?:      'form'   | 'hidden',    // Default 'form'
   pillFields?:                string[],               // Default [] — YAML keys shown as pills (§ 8.4)
   inlineRefStyle?:            'attribute-block' | 'html-ref',  // Default 'attribute-block' (§ 8.3)
@@ -276,11 +279,17 @@ undurchsichtiger Bezeichner für den Host. `grain` einer View ist eine `rank`-An
 `pillFields` wählt, welche Frontmatter-Schlüssel zusätzlich als Pills unter der Überschrift
 erscheinen (P5). Nicht gelistete Schlüssel bleiben nur im Formular (FM7).
 `inlineRefStyle` wählt **eine** Chip-Syntax je Session (W6). Die Styles mischen sich nicht.
+`newGroupDelay` ist die Tipp-Pause in Millisekunden, bevor ein neuer Undo-Schritt beginnt (U17).
+Default 500, wie CM6 `history()`. Der Host darf einen anderen Wert setzen; die Timeline folgt
+der Session-History, nicht einer eigenen Uhr.
 
 **Zur Konfigurierbarkeit von L5/R5:** Strukturbearbeitung in `wysiwyg` zu sperren ist
 **Host-Politik, keine Invariante**. Die Komponente muss sperren *können*; ob sie es tut,
 entscheidet der Host. Voreingestellt ist `locked`, weil eine Struktur-Mutation ohne sichtbare
 Marker für den Bearbeiter schwer vorhersehbar ist.
+`headingEditingInWysiwyg` ist dieselbe Klasse: Default `'inline'` hält L4 und LH4; `'locked'` macht
+Schema-Überschrift plus YAML-Zaun zur atomaren Einheit (LH1–LH3). Der Host rendert den Titel
+dann als Formular/Widget und schreibt per L5.
 
 ---
 
@@ -412,13 +421,18 @@ Dispatch auslösen.
 
 | # | Regel |
 | - | ----- |
-| **L1** | Marker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. Inline-Delimiter (§ 8.6) sind dieselbe Atom-Familie — je Delimiter-Run (`*` / `**` / `_` / `__` / `~~` / Backtick-Run), nicht die ganze Spanne. In `source` ist `##` zwei Zeichen, kein Atom. |
+| **L1** | Marker sind in `wysiwyg` atomar: Löschen erfasst die ganze Einheit oder nichts. Die ATX-Einheit ist `#{1,6}` plus **genau ein** Trenner `[ \t]`. Weitere Spaces gehören zum Titel (L4) und sind einzeln löschbar. ATX-Marker gelten **nicht** innerhalb eines Fenced-Code-Blocks (CommonMark): `#` dort bleibt sichtbarer Quelltext. Inline-Delimiter (§ 8.6) sind dieselbe Atom-Familie — je Delimiter-Run (`*` / `**` / `_` / `__` / `~~` / Backtick-Run), nicht die ganze Spanne. In `source` ist `##` zwei Zeichen, kein Atom. |
 | **L2** | Getippte Markdown-Syntax wird nicht interpretiert, sondern maskiert geschrieben (`#`, `*`, `_`, `>`, `-`, Backtick, Backslash, `<`). **Ein Durchgang** über die ursprüngliche Einfügung. Der Maskierungs-Backslash wird nicht ein zweites Mal maskiert — sonst wird aus `#` zuerst `\#` und lebend `\\####`. In `wysiwyg` blendet die Darstellung den Maskierungs-Backslash aus (`\#` liest als `#`); der Puffer behält `\#`. Löschen des sichtbaren `#` entfernt den Backslash mit. |
 | **L3** | Mehrzeiliges Einfügen wird in einem Schritt maskiert und in einem Schritt zurückgenommen. |
-| **L4** | Überschriftentext bleibt in `wysiwyg` editierbar, unabhängig von `policy.structureEditingInWysiwyg` — **außer** der Scope-Überschrift, wenn `showNodeHeading: false` (SNH2): die ist ausgeblendet und nicht erreichbar. |
+| **L4** | Überschriftentext bleibt in `wysiwyg` editierbar, unabhängig von `policy.structureEditingInWysiwyg` — **außer** der Scope-Überschrift, wenn `showNodeHeading: false` (SNH2): die ist ausgeblendet und nicht erreichbar. Zeilenumbruch (Enter) auf einer Überschriftenzeile fügt bei `'locked'` keine Zeile ein — das wäre Struktur, nicht Titeltext. Eine Leerzeile *zwischen* Überschriften bleibt normale Prosa. Gilt bei `headingEditingInWysiwyg: 'inline'` (Default). Bei `'locked'` tritt LH1 an die Stelle der Titel-Editierbarkeit. |
 | **L5** | Programmatische Änderungen umgehen die Sperren gezielt (Widgets, API, Undo). |
 | **L6** | Sperrdefinition an genau einer Stelle (I6). |
-| **L7** | Ändert sich die Presentation oder die Menge der gesperrten Bereiche, wird die Selektion **in einem Schritt** aus neu gesperrten Bereichen geparkt: Anker und Kopf je auf die nächstgelegene erreichbare Position außerhalb der Sperre. Ohne Timeline-Eintrag, ohne Scroll (I4), ohne Nachlauf (I5). Eine in `source` gültige Selektion darf in `wysiwyg` nicht in Chrome stehen bleiben. Gilt für alle Sperren derselben Menge — eigene wie host-beigesteuerte (`ProtectedRange`, § 12). Ein Ort (L6). |
+| **L7** | Ändert sich die Presentation oder die Menge der gesperrten Bereiche, wird die Selektion **in einem Schritt** aus neu gesperrten Bereichen geparkt: Anker und Kopf je auf die nächstgelegene erreichbare Position außerhalb der Sperre. Eine Position auf `from` einer halb-offenen Sperre `[from, to)` gilt als innen, wenn `from` am Zeilenanfang oder auf einem Zeilenumbruch liegt (Einfügeloch vor Block-Atomen) — Parkziel ist dann `to`. Inline-Atome (Chip-Chrome nach dem Label) behalten `from` als erreichbaren Rand. Endet eine Block-Sperre am Dokumentende ohne folgende Zeile, wird ein `\n` als Parkzeile angelegt (kein Timeline-Eintrag). Grenzen zwei Block-Sperren unmittelbar aneinander (`a.to === b.from`), wird dasselbe `\n` dazwischen gelegt — der Caret bleibt auf der neuen Zeile, er springt nicht in die zweite Sperre. Ohne Scroll (I4), ohne Nachlauf (I5). Eine in `source` gültige Selektion darf in `wysiwyg` nicht in Chrome stehen bleiben. Gilt für alle Sperren derselben Menge — eigene wie host-beigesteuerte (`ProtectedRange`, § 12). Ein Ort (L6). |
+| **L8** | In `wysiwyg` darf eine Löschung Prosa nicht mit einer Schema-Überschrift oder gebundenem YAML verkleben, indem sie den trennenden Zeilenumbruch (und nur-leere Zeilen dazwischen) entfernt. Gilt unabhängig von `headingEditingInWysiwyg`. Undo, Sync und L5 (`hostWriteAnnotation`) umgehen die Sperre. Host-Chrome, das keine Schema-Überschrift ist, sperrt denselben Join über `extraLockedRanges` (Rücktaste an `from`). |
+| **LH1** | `headingEditingInWysiwyg: 'locked'`: jede Schema-Überschrift und ihr YAML-Zaun (falls vorhanden) sind **eine** gesperrte, atomare Einheit. Die Einheit läuft vom öffnenden Zaun (sonst `heading.from`) bis einschließlich des Newlines nach der ATX-Zeile. Titeltext ist nicht zeichenweise erreichbar. Leading blanks vor dem Zaun bleiben Prosa. `source` und `'inline'` unverändert. Schreibzugriff nur L5. |
+| **LH2** | Leerer Caret an der Einheitsgrenze: Rücktaste bei `to` bzw. Entf bei `from` (oder dem Newline davor) **selektiert** die Einheit und löscht nicht. |
+| **LH3** | Eine Löschung darf eine Heading-Einheit nur entfernen, wenn sie die Einheit vollständig überdeckt. Teilüberlappung wird abgewiesen. Select-all im Ausschnitt und anschließendes Löschen ist zulässig. |
+| **LH4** | `headingEditingInWysiwyg: 'inline'`: Wird der Titel einer Schema-Überschrift vollständig geleert, entfällt die Heading-Einheit (YAML-Zaun falls vorhanden plus ATX-Zeile inkl. Newline). Reine Einfügungen (Zeilenumbruch im Titel) tun das nicht. Extra-gesperrte Host-Ranges sind ausgenommen. Leading blanks vor dem Zaun bleiben Prosa (LH1). `'locked'` braucht das nicht (LH1). |
 
 ### 8.2 Frontmatter
 
@@ -430,16 +444,21 @@ nicht als Rohtext erreichbar. `policy.frontmatterInWysiwyg` entscheidet die Dars
 | `form` (Default) | Block-Widget mit Formularfeldern je Schlüssel |
 | `hidden` | vollständig unsichtbar |
 
+Host-Block-Replace über dieselbe Spanne (Facet `hostBlockReplaceRanges`, z. B. Marli
+FM+ATX-Chrome) unterdrückt Form/Hide auf überlappenden Zonen — keine zweite
+`Decoration.replace` (I6).
+
 | # | Regel |
 | - | ----- |
 | **FM1** | Der Rohtext des Blocks ist in `wysiwyg` nicht per Caret erreichbar und nicht direkt editierbar. |
-| **FM2** | Keine Tastenfolge — auch keine wiederholte — macht ihn sichtbar, zerteilt ihn oder verklebt ihn mit Nachbartext. |
+| **FM2** | Keine Tastenfolge — auch keine wiederholte — macht ihn sichtbar, zerteilt ihn oder verklebt ihn mit Nachbartext. Zur gesperrten Einheit gehören der YAML-Zaun und die Klebe-Leerzeilen nach dem schließenden Zaun bis zur gebundenen Überschrift. Rücktaste direkt vor `---`, wenn die vorausgehende Zeile nicht leer ist, bleibt gesperrt. |
 | **FM3** | Das Formular schreibt Änderungen **ausschließlich als Transaktion** auf die YAML-Range. Kein Formularzustand außerhalb des Document. |
 | **FM4** | Daraus folgt ohne Zusatzpfad: die Änderung liegt auf der Timeline (§ 9) und im Dirty-Status (§ 9.3). |
 | **FM5** | Ein geleertes Feld erzeugt gültiges Markdown — Schlüssel entfällt oder trägt einen leeren Wert, nie ein YAML-Fragment. |
 | **FM6** | Der Frontmatter des Scope-Node einer View wird auch dann gerendert, wenn er textlich vor der Überschrift liegt. |
 | **FM7** | Das Formular ist **Metadaten-Oberfläche, kein Fließtext**: seine Feldinhalte nehmen an der Textsuche (§ 10) **nicht** teil. |
 | **FM8** | Als Block-Widget deklariert das Formular seine **Endhöhe** über `estimatedHeight` (oder gleichwertig), bevor Scroll/Layout die Zeile braucht. `toDOM` stellt dieselbe Höhe **synchron** her — kein nachträgliches Wachstum per Microtask/`requestMeasure`, das `scrollTop` korrigiert, während der Nutzer nur rollt. |
+| **FM9** | In `hidden` ist die ausgeblendete **und gesperrte** Spanne der YAML-Zaun bis zur gebundenen Überschrift (inkl. Klebe-Leerzeilen nach dem schließenden Zaun). Die Leerzeile *nach* der vorausgehenden Überschrift bleibt eine normale, sichtbare, editierbare Zeile. |
 
 FM7 ist eine bewusste Entscheidung, keine technische Grenze — Begründung und Alternative in
 § 17, O8.
@@ -608,6 +627,7 @@ timeline.push({ apply, revert, reveal? , label? })
 | **U14** | Die CM6-eigene History ist ein *Primitiv*, das die äußere Timeline ansteuert: bei einem Texteintrag ruft sie CM6-Undo (auf dem `SessionEditorState`, § 11.2), bei einem fremden Eintrag dessen `revert`, **ohne** die CM6-History anzufassen. |
 | **U15** | Damit U14 trägt, müssen Texteinträge der Timeline 1:1 und in Reihenfolge auf CM6-History-Schritte abbilden. Deshalb darf nichts sonst in die CM6-History schieben (U2). |
 | **U16** | Bei gemischtem Betrieb ist **jeder Undo-Eintrittspunkt an genau eine Timeline gebunden** — üblicherweise über die fokussierte Oberfläche. Kein Erraten, welcher Stack gemeint ist. |
+| **U17** | Aufeinanderfolgende Textänderungen, die die Session-`history()` zusammenfasst, sind **ein** Timeline-Texteintrag (U15). Die Pause ist `newGroupDelay` an `createSession`, in Millisekunden. Ohne Angabe gilt 500 (CM6-Default). Die Timeline hält keine zweite Uhr — sie folgt `undoDepth` der Session-History. Tests setzen `Transaction.time` und warten nicht (I5). |
 
 Damit ist die globale Zeitachse Host-weit, ohne dass fremde Domänen in den Markdown-Puffer
 gezwungen werden (Domänenfreiheit, § 1).
@@ -651,6 +671,12 @@ ein Modus mit einem Parameter:
 | **F3** | Trefferliste und aktiver Treffer gehören zur View. Zwei Views können gleichzeitig in unterschiedlichen Modi suchen. |
 | **F10** | `findNext` / `findPrev` (Tasten **F3** / **Shift+F3**) wechseln nur den **aktiven Treffer** der bestehenden Liste — keine neue Projektion. Am Ende der Liste wird gewrappt. Aufdecken folgt dem Modus der Liste (F1/F2). |
 | **F11** | Bevor ein Treffer aufgedeckt wird, werden alle Folds aufgehoben, die den Trefferbereich überlappen. Ein Dispatch, kein Warten (I5). Ohne überlappenden Fold ist der Aufruf ein No-Op. |
+| **F12** | Die Suche beachtet standardmäßig die Groß-/Kleinschreibung **nicht**. `caseSensitive: true` verlangt exakte Groß-/Kleinschreibung. Gilt für Literal und Regex. |
+| **F13** | `regex: false` (Default) sucht den Query-String **literal**, auch wenn er Regex-Metazeichen enthält. `regex: true` interpretiert die Query als JavaScript-Regulären-Ausdruck (`u`-Flag). Ein ungültiges Muster liefert eine leere Trefferliste, keinen Wurf. |
+
+Hosts dürfen dieselbe Query gegen viele Dokumente laufen lassen; die Einheit ist
+`findInDocument` (ein Document, eine Projektion). Die Komponente orchestriert keine
+workspace-übergreifende Suche.
 
 ### 10.2 Projektion
 
@@ -813,20 +839,42 @@ Test-/Harness-Hilfen (`excerpt`, `dispatch`, `relations`, `editorView`, …). Ne
 erfordern eine Änderung dieser Sektion; `scripts/check-export-surface.mjs` erzwingt die
 Deckung.
 
+**Debug, nicht Vertrag.** `synoptic-editor/debug` (`inspectDirty`) liest Baseline- vs.
+Current-Text (D1/D2) für Host-Dev-Tools. Kein §-12-Export; Produktions-Hosts importieren
+das Subpath nicht. `check-export-surface` prüft nur `src/index.ts`.
+
 ### Fabriken
 
 | Signatur | Art |
 | -------- | --- |
-| `createSession({ doc, schema, policy?, timeline?, strings? })` | Session |
+| `createSession({ doc, schema, policy?, timeline?, strings?, newGroupDelay? })` | Session |
 | `createTimeline()` | Timeline — Host erzeugt sie, wenn er Einträge schieben oder eine Zeitachse teilen will (U12/U13). Ohne Argument legt `createSession` eine eigene an. |
 | `findChips(doc, from?, to?, style?)` | rein — Chip-Spans für `attribute-block` / `html-ref` (I6, § 8.3). Eine Scanner-Stelle für Host und Komponente. |
 | `isExactChipDelete(doc, from, to, style?)` | rein — wahr genau dann, wenn `[from, to)` eine lückenlose Folge ganzer Chips ist (W3). |
 | `setHeadingLevel(view, depth)` · `insertListPrefix(view, '-' \| '1.')` · `toggleWrapSelection(view, open, close?)` | Kommando — Markdown-Zeile/Selektion, kein Schema (C1–C3). |
-| `bodyBlockStarts(text)` · `blockIndexAtOffset(starts, pos)` | rein — Scroll-Anker zwischen Presentations (V11). |
+| `findInDocument(doc, opts)` | rein — Trefferliste eines Documents (§ 10). `opts` trägt Presentation, Range, Schema und `FindMatchOptions` (`caseSensitive`, `regex`). |
 | `unfoldOverlappingFolds(view, from, to)` | Kommando — Folds über dem Treffer aufheben vor dem Aufdecken (F11). |
 | `paddedVisibleRanges(view, pad?)` | lesend — sichtbare Ranges plus Rand (G8). |
 | `intervalsOverlap(a, b)` · `scrollElementIntoViewIfNeeded(el, opts?, port?)` | rein / DOM — vertikale Sichtbarkeit im Scrollport (G9). |
-| `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. |
+| `wysiwygGuards(opts?)` | Extension — L1–L3 Guards für einen wysiwyg-EditorState ohne Session. Mit `schema` auch L8 (`structureJoinFilter`). |
+| `structureJoinFilter(schema)` | Extension — L8: Prosa darf nicht mit Schema-Überschrift oder gebundenem YAML verkleben. |
+| `frontmatterLockFilter(schema, opts?)` | Extension — FM2 Edit-Sperre; L5 via `hostWriteAnnotation` / `frontmatterWriteAnnotation` / Undo. `opts.allowChange` für Host-Löcher in der gepolsterten Zone. |
+| `hiddenFrontmatterGuards(schema)` | Extension — wysiwyg ohne Session: FM unsichtbar (Zeilen-Hide ab dem Zaun, FM9), atomar, Edit-Sperre (FM1/FM2), L7-Park der Hidden-FM-Zonen plus `extraLockedRanges` (ohne L1-Marker). |
+| `projectTree(doc, schema)` | rein — Strukturbäume (I2). |
+| `frontmatterRanges(doc, schema)` | rein — YAML-Blöcke aus dem Tree (FM1, I6). |
+| `paddedFrontmatterRanges(doc, schema)` | rein — YAML-Blöcke plus umgebende Leerzeilen bis zur gebundenen Überschrift (I6). |
+| `hiddenFrontmatterRanges(doc, schema)` | rein — YAML-Zaun bis zur gebundenen Überschrift, ohne die Leerzeile nach der vorausgehenden Überschrift (FM9, I6). |
+| `headingUnitRanges(doc, schema)` | rein — YAML-Zaun plus gebundene ATX-Zeile inkl. Newline (LH1, I6). |
+| `headingUnitGuards(schema, opts?)` · `headingUnitAtBoundary(doc, schema, head, dir)` | Extension / rein — Default `'locked'`: Lock, Atom, Sticky-Select (LH1–LH3). `{ editing: 'inline' }`: leerer Titel entfernt die Einheit (LH4). |
+| `headingMarkers(doc)` · `maskBackslashRanges(doc, from, to)` · `findHtmlComments(doc, from?, to?)` · `findInlineMarks(doc)` · `inlineDelimiterRanges(marks)` | rein — eine Scanner-Stelle (I6). |
+| `extraLockedRanges` | Facet — Host-Sperren (`ProtectedRange`) in dieselbe Menge (L6/L7). |
+| `extraAtomicRanges` | Facet — Host-Ranges, die der Caret überspringt. Unabhängig von `extraLockedRanges` (eine Zeile kann gesperrt und trotzdem nicht atomar sein). |
+| `extraLockedGuards(opts?)` | Extension — Edit-Sperre auf `extraLockedRanges`, Atomic auf `extraAtomicRanges`. Default inkl. L7-Park der Extra-Ranges (Parkzeile am EOF). `{ park: false }` wenn ein anderer Filter die Extra-Ranges schon parkt (Hidden-FM-Guards oder Session). |
+| `extraLockedParkFilter()` | Extension — nur L7-Park der Extra-Ranges, ohne Edit-Sperre/Atom (wenn die schon von `extraLockedGuards({ park: false })` kommen). |
+| `hostWriteAnnotation` | Annotation — L5-Bypass der Extra-Sperren (Host-Schreibvorgänge). |
+| `parkSelectionInState(state, opts?)` | lesend — L7-Park auf dem aktuellen State (Scanner + `extraLockedRanges`). |
+| `protectedWidgetExtension` · `preventProtectedDeletionFilter` · `protectedAtomicField` · `protectedDecorationField` · `protectedActiveMatchField` · `setProtectedActiveMatch` | Extension / Effect — Host-Widgets auf geschützten Ranges (`block: true` Replace); Find-Highlight im Widget. |
+| `hostBlockReplaceRanges` · `overlapsHostBlockReplace` · `coveredByHostBlockReplace` | Facet / rein — Host-Block-Replace-Spannen; Session-FM-Hide/Form und Marker-Hide überspringen überlappende Zonen (I6). |
 
 `strings` ist optionales Host-Vokabular. Unbekannte Schlüssel werden ignoriert; gerenderte
 Widgets zeigen Frontmatter-Schlüssel unverändert, solange kein Mapping in dieser Sektion
@@ -859,19 +907,20 @@ steht.
 | `view.mount(el)` · `view.destroy()` | Lebenszyklus |
 | `view.getState()` | lesend — Wiederherstellungszustand mit TrackedPositions (§ 3.5) |
 | `view.setScope(nodeId, { include: 'own' \| 'subtree' })` | Kommando — Umfang (§ 3.1) |
-| `view.setPresentation(p)` · `setGrain(rank)` · `setShowNodeHeading(show)` | Kommando |
+| `view.setPresentation(p)` · `setGrain(rank)` · `setShowNodeHeading(show)` | Kommando — `setPresentation` stellt `scrollAt` wieder her (V11) |
+| `view.freezeScrollAnchor()` | Kommando — Leselinie nach `scrollAt` frieren, bevor der Host das Layout kippt (V11) |
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.reveal(from, to, cause)` | Kommando — Range in den Viewport (Find-Offsets); `cause` Pflicht (I4) |
-| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8; ADR 0015) |
-| `view.setExtensions(extensions, presentationExtensions?)` | **deprecated** — Prefer `setPlugins` |
+| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8; ADR 0015). Solange `scrollAt` gefroren ist, nur Bags schreiben, kein Chrome (V11) |
+| `view.setExtensions(extensions, presentationExtensions?)` | **deprecated** — Prefer `setPlugins`. Solange `scrollAt` gefroren ist, nur Bags, kein Chrome (V11). |
 | `view.coords(from, to)` | lesend — Box relativ zum Scrollport (§ 12.1); `null` wenn ungemountet oder Position ungültig |
 | `view.scrollPort` | lesend — Scroll-Owner-Element (I4) oder `null` wenn ungemountet |
 | `view.visibleNode` | lesend |
-| `view.find(query, { mode: 'view' \| 'document', activate?: boolean })` | Kommando (§ 10.1) → `SearchHit[]`. `activate: false` malt Treffer ohne Scroll/Selektion (Suchleiste beim Tippen). |
+| `view.find(query, { mode: 'view' \| 'document', activate?: boolean, caseSensitive?: boolean, regex?: boolean })` | Kommando (§ 10.1) → `SearchHit[]`. `activate: false` malt Treffer ohne Scroll/Selektion (Suchleiste beim Tippen). Default: nicht case-sensitive, literal (F12/F13). |
 | `view.findNext()` · `view.findPrev()` | Kommando — aktiver Treffer (F3/F10) → `SearchHit \| null` |
 | `view.replace(hitId, text)` · `view.replaceAll(text, { classes })` | Kommando (§ 10.3) |
-| `view.focus()` | Kommando |
+| `view.focus(opts?)` | Kommando — `opts.preventScroll` lässt den Viewport unbewegt (I4, V11) |
 
 ### Timeline
 
@@ -1097,6 +1146,7 @@ darf auf Zeit warten (I5).
 | T111 | Backspace an der exklusiven Kante klebt die nächste Überschrift nicht an die vorige Zeile; der Nachbar erscheint nicht im Ausschnitt (§ 11.1.11). |
 | T112 | Select-All-Copy ist auf den Ausschnitt geclippt — Clipboard ist nicht Hide (EX2). |
 | T113 | In `source` ist `##` zwei Zeichen: ein `#` lässt sich einzeln löschen (L1). |
+| **T135** | Nach `##` → `#` an einem Kind bleibt der Parent-Ausschnitt vollständig; `setScope` auf dieselbe Wurzel schneidet ihn nicht ab (EX1/EX6). |
 
 ### Timeline und Dirty
 
@@ -1130,11 +1180,20 @@ darf auf Zeit warten (I5).
 | T115 | Wysiwyg-Delete am Ende der Überschriftenzeile entfernt das folgende CRLF, nicht den Nachbarn (§ 11.1.10). |
 | T116 | Löschen des sichtbaren `#` von `\#` in `wysiwyg` entfernt den Maskierungs-Backslash mit (L2). |
 | **T43** | `policy.structureEditingInWysiwyg: 'locked'` → Strukturänderung abgelehnt, Überschriftentext editierbar (L4). Mit `'allowed'` → Strukturänderung zulässig, Regeln R6/R7 gelten unverändert. **Beide Belegungen werden geprüft.** |
+| **T136** | `headingEditingInWysiwyg: 'locked'`: Caret und Tippen erreichen den Titel nicht; YAML-Zaun und ATX-Zeile sind eine Einheit (LH1). Default `'inline'` ändert T43 nicht. |
+| **T137** | Leerer Caret hinter der Einheit: Rücktaste selektiert die Einheit und ändert das Document nicht (LH2). |
+| **T138** | Selektion, die die Einheit vollständig überdeckt (inkl. Select-all), darf sie löschen; eine Teilüberlappung nicht (LH3). |
 | T44 | Undo darf gesperrte Bereiche verändern (U6). |
 | T64 | Caret lässt sich in `wysiwyg` nicht in den Frontmatter-Rohtext setzen (FM1). |
 | T65 | Formularfeld ändern → YAML-Range im Document geändert, in paralleler `source`-View sichtbar (FM3). |
 | T66 | Feld leeren → gültiges Markdown, kein YAML-Fragment (FM5). |
 | T67 | Frontmatter vor der Überschrift wird für den Scope-Node gerendert (FM6). |
+| **T139** | Zwei Schema-Überschriften mit Leerzeile plus YAML dazwischen: in `hidden` bleibt die Leerzeile nach der ersten Überschrift sichtbar; der YAML-Zaun nicht (FM9). |
+| **T140** | Dieselbe Leerzeile ist editierbar (Tippen, Löschen). Rücktaste, die die Überschriftenzeile mit `---` verkleben würde, bleibt abgelehnt (FM2/FM9). |
+| **T141** | Rücktaste am Anfang einer Prosa-Zeile direkt unter einer Schema-Überschrift (oder gebundenem YAML) ändert das Document nicht; Entf am Ende der Prosa-Zeile direkt über der nächsten Schema-Überschrift ebenso (L8). |
+| **T142** | Wysiwyg, letzte Block-Sperre endet am EOF ohne folgende Zeile: Selektion auf EOF legt ein `\n` an und parkt den Caret dahinter (L7). |
+| **T143** | `headingEditingInWysiwyg: 'inline'`: Löschen des letzten Titelzeichens entfernt YAML-Zaun und ATX-Zeile, Prosa bleibt; Enter im Titel tut das nicht; eine extra-gesperrte Überschrift bleibt (LH4). |
+| **T144** | Zwei Block-Sperren ohne Zeichen dazwischen: Selektion an der Naht legt ein `\n` an und parkt den Caret darauf, nicht in die zweite Sperre (L7). |
 
 ### Suche
 
@@ -1161,7 +1220,9 @@ darf auf Zeit warten (I5).
 | **T129** | `*kursiv*` / `**fett**` in `wysiwyg`: Delimiter unsichtbar und atomar; Innen trägt `syn-em` / `syn-strong`; Document behält die Marker (IM1/I9). |
 | **T130** | Suche nach `*` oder `**` trifft in `wysiwyg` keine Emphasis-/Strong-Delimiter; Suche nach dem Innen-Text trifft (IM4/F4). In `source` sind die Marker suchbar (F5). |
 | **T131** | `~~x~~` und `` `code` ``: gleiche Hide+Mark-Regel; Code-Span bricht Emphasis darin (IM1/IM2). |
-| **T132** | `\*literal\*` in `wysiwyg`: Backslash hide (L2); die `*` sind keine Delimiter und bleiben sichtbar (IM3). |
+| T132 | `\*literal\*` in `wysiwyg`: Backslash hide (L2); die `*` sind keine Delimiter und bleiben sichtbar (IM3). |
+| **T145** | Query `ARIA` trifft `aria` (Default); mit `caseSensitive: true` nicht (F12). |
+| **T146** | `regex: true`, Query `a.ia` trifft `aria`; dieselbe Query literal nicht. Ungültiges Muster `[` → leere Liste (F13). |
 
 ### Ersetzen
 
@@ -1198,6 +1259,7 @@ darf auf Zeit warten (I5).
 | T105 | `replaceDocument` meldet alle TrackedPositions als ungültig, entfernt aber keine (TP8/U7). |
 | T106 | TrackedPositions werden auch dann abgebildet, wenn **keine einzige View** montiert ist (§ 3.4). |
 | T91 | Verschränkte Timeline: Undo eines fremden Eintrags ruft dessen `revert` und lässt die CM6-History unangetastet; der nächste Undo trifft den davor liegenden Texteintrag (U14/U15). |
+| **T149** | Zwei benachbarte `input.type`-Einfügungen innerhalb von `newGroupDelay` → ein Undo stellt beide wieder her. Nach einer Zeitlücke ≥ Delay (über `Transaction.time`, ohne Warten) ist die nächste Einfügung ein zweiter Schritt. Ein gesetztes `newGroupDelay` (z. B. 200) gilt (U17). |
 
 ### Widgets
 
@@ -1226,6 +1288,8 @@ darf auf Zeit warten (I5).
 | - | ---- | ---------- |
 | **T126** | Ungemountet: `scrollPort` ist `null`, `coords(0, 0)` ist `null` (G6). Nach `mount` ist `scrollPort` das CM6-`scrollDOM`; `coords` für eine gültige Range liefert eine Box mit `bottom ≥ top` und `right ≥ left` (G4/G5). | Vertrag für Overlay ohne `EditorView`-Leak |
 | **T127** | `coords` liegt relativ zum Scrollport inkl. Scroll-Offset: nach programmatischem Scroll ändert sich die Box konsistent mit `scrollTop` (G4); Persistenz bleibt TrackedPosition, nicht Pixel (V3). | Overlay wandert mit dem Text |
+| **T147** | `freezeScrollAnchor` dann Viewport auf 0, dann `setPresentation`: der Restore-Dispatch trägt den gefrorenen Offset, nicht den Offset bei `scrollTop` 0 (V11). Ohne Freeze stellt `setPresentation` die Leselinie von unmittelbar vor dem Chrome-Wechsel wieder her. Measure überschreibt `scrollAt` nicht, solange gefroren. | Host-CSS darf nicht zwischenmessen |
+| **T148** | `freezeScrollAnchor`, dann `setPlugins` mit Source-Gutter: DOM hat noch keinen Gutter; nach `setPresentation` ist der Gutter da. Ein `setPlugins` ohne Freeze zeigt den Gutter sofort (V11). | Ein Chrome pro Umschaltung |
 
 ### Scope-Überschrift (`showNodeHeading`)
 

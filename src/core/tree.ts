@@ -4,6 +4,7 @@
  */
 
 import type { Range, StructureSchema, Tree, TreeNode } from "./types.js";
+import { coveredByFence, fencedCodeRanges } from "./fences.js";
 
 interface RawHeading {
   id: string;
@@ -15,6 +16,24 @@ interface RawHeading {
   heading: Range;
   /** Index of first char after heading line's newline (body start). */
   afterHeading: number;
+}
+
+/**
+ * Matches a markdown ATX heading line. Parsed by hand rather than with a
+ * `[ \t]+(.*)$`-style regex: `.` also matches tabs/spaces, so the boundary
+ * between the required whitespace run and the captured rest is ambiguous —
+ * polynomially slow on inputs with long tab runs (CodeQL js/polynomial-redos).
+ */
+function matchHeadingLine(line: string): { depth: number; title: string } | null {
+  let i = 0;
+  while (i < line.length && line[i] === "#") i++;
+  if (i === 0 || i > 6) return null;
+  if (i >= line.length || (line[i] !== " " && line[i] !== "\t")) return null;
+  let j = i;
+  while (j < line.length && (line[j] === " " || line[j] === "\t")) j++;
+  let end = line.length;
+  while (end > j && (line[end - 1] === " " || line[end - 1] === "\t")) end--;
+  return { depth: i, title: line.slice(j, end) };
 }
 
 function depthToRank(schema: StructureSchema): Map<number, number> {
@@ -40,6 +59,7 @@ function escapeRegExp(s: string): string {
  */
 function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
   const rankOf = depthToRank(schema);
+  const fences = fencedCodeRanges(doc);
   const lines = doc.split("\n");
   const out: RawHeading[] = [];
   let offset = 0;
@@ -81,9 +101,9 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
         }
         if (k < lines.length) {
           const hLine = lines[k]!;
-          const hm = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(hLine);
-          if (hm) {
-            const depth = hm[1]!.length;
+          const hm = matchHeadingLine(hLine);
+          if (hm && !coveredByFence(look, fences)) {
+            const depth = hm.depth;
             const rank = rankOf.get(depth);
             if (rank !== undefined) {
               const headingFrom = look;
@@ -93,7 +113,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
               out.push({
                 id,
                 rank,
-                title: hm[2]!,
+                title: hm.title,
                 start: lineStart,
                 frontmatter: { from: lineStart, to: endOffset },
                 heading: { from: headingFrom, to: headingTo },
@@ -112,9 +132,9 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
       continue;
     }
 
-    const hm = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(line);
-    if (hm) {
-      const depth = hm[1]!.length;
+    const hm = matchHeadingLine(line);
+    if (hm && !coveredByFence(lineStart, fences)) {
+      const depth = hm.depth;
       const rank = rankOf.get(depth);
       if (rank !== undefined) {
         const headingFrom = lineStart;
@@ -123,7 +143,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
         out.push({
           id: `auto-${++autoId}`,
           rank,
-          title: hm[2]!,
+          title: hm.title,
           start: headingFrom,
           frontmatter: null,
           heading: { from: headingFrom, to: headingTo },
@@ -140,6 +160,91 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
   }
 
   return out;
+}
+
+/** Line at `pos` — `to` is the line break (or EOF), matching CodeMirror `Line.to`. */
+function lineAtOffset(doc: string, pos: number): { from: number; to: number; text: string } {
+  const clamped = Math.max(0, Math.min(pos, doc.length));
+  const from = clamped === 0 ? 0 : doc.lastIndexOf("\n", clamped - 1) + 1;
+  const nl = doc.indexOf("\n", clamped);
+  const to = nl < 0 ? doc.length : nl;
+  return { from, to, text: doc.slice(from, to) };
+}
+
+/** YAML blocks bound to schema headings (FM1). Orphan fences are not ranges. */
+export function frontmatterRanges(doc: string, schema: StructureSchema): Range[] {
+  const out: Range[] = [];
+  for (const node of projectTree(doc, schema).nodes.values()) {
+    const fm = node.frontmatter;
+    if (fm && fm.to > fm.from) out.push(fm);
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/**
+ * Frontmatter fences plus surrounding blanks (FM2): the break after the
+ * preceding non-empty line, and trailing blanks up to the bound heading.
+ */
+export function paddedFrontmatterRanges(doc: string, schema: StructureSchema): Range[] {
+  return frontmatterRanges(doc, schema).map((range) => {
+    let from = range.from;
+    while (from > 0) {
+      const lineBefore = lineAtOffset(doc, from - 1);
+      if (lineBefore.text.trim().length > 0) {
+        from = lineBefore.to;
+        break;
+      }
+      from = lineBefore.from;
+    }
+
+    let to = range.to;
+    while (to < doc.length) {
+      const line = lineAtOffset(doc, to);
+      if (line.from === to) {
+        if (line.text.trim().length > 0) break;
+        to = Math.min(doc.length, line.to + (line.to < doc.length ? 1 : 0));
+        continue;
+      }
+      break;
+    }
+    return { from, to };
+  });
+}
+
+/**
+ * Hidden-mode frontmatter (FM9): opening fence through the bound heading,
+ * including glue blanks after the closing fence. Leading blanks before the
+ * fence stay visible prose (the gap after the previous heading).
+ */
+export function hiddenFrontmatterRanges(doc: string, schema: StructureSchema): Range[] {
+  const nodes = [...projectTree(doc, schema).nodes.values()];
+  const out: Range[] = [];
+  for (const node of nodes) {
+    const fm = node.frontmatter;
+    if (!fm) continue;
+    const from = fm.from;
+    const to = node.heading.from;
+    if (to > from) out.push({ from, to });
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/**
+ * Locked heading unit (LH1): YAML fence (if any) through the bound ATX line
+ * and its trailing newline. Leading blanks before the fence stay prose.
+ */
+export function headingUnitRanges(doc: string, schema: StructureSchema): Range[] {
+  const nodes = [...projectTree(doc, schema).nodes.values()].sort(
+    (a, b) => a.heading.from - b.heading.from,
+  );
+  const units: Range[] = [];
+  for (const node of nodes) {
+    const from = node.frontmatter?.from ?? node.heading.from;
+    let to = node.heading.to;
+    if (to < doc.length && doc[to] === "\n") to += 1;
+    if (to > from) units.push({ from, to });
+  }
+  return units;
 }
 
 /**

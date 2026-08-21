@@ -23,6 +23,32 @@ export const syncAnnotation = Annotation.define<boolean>();
 
 export type SessionEditorState = EditorState;
 export type ViewId = string;
+export type SyncOptions = { newGroupDelay?: number };
+
+function annotationList(spec: TransactionSpec): Annotation<unknown>[] {
+  const a = spec.annotations;
+  if (!a) return [];
+  return (Array.isArray(a) ? a : [a]) as Annotation<unknown>[];
+}
+
+/** Copy grouping clocks from the origin view onto the session history (U17). */
+function sessionHistoryAnnotations(trs: readonly Transaction[]): Annotation<unknown>[] {
+  const last = trs[trs.length - 1]!;
+  const out: Annotation<unknown>[] = [];
+  const time = last.annotation(Transaction.time);
+  if (time != null) out.push(Transaction.time.of(time));
+  const userEvent = last.annotation(Transaction.userEvent);
+  if (userEvent) out.push(Transaction.userEvent.of(userEvent));
+  const isolate = last.annotation(isolateHistory);
+  if (isolate) out.push(isolateHistory.of(isolate));
+  const add = last.annotation(Transaction.addToHistory);
+  if (add === false) out.push(Transaction.addToHistory.of(false));
+  return out;
+}
+
+function historyExtension(opts?: SyncOptions): Extension {
+  return opts?.newGroupDelay == null ? history() : history({ newGroupDelay: opts.newGroupDelay });
+}
 
 interface Slot {
   state: EditorState;
@@ -40,11 +66,13 @@ export class SyncEngine {
   private sessionState: SessionEditorState;
   private readonly slots = new Map<ViewId, Slot>();
   private applying = false;
+  private readonly historyExt: Extension;
 
-  constructor(doc: string) {
+  constructor(doc: string, opts?: SyncOptions) {
+    this.historyExt = historyExtension(opts);
     this.sessionState = EditorState.create({
       doc,
-      extensions: [history()],
+      extensions: [this.historyExt],
     });
   }
 
@@ -155,12 +183,14 @@ export class SyncEngine {
     const changes = composeChanges(trs);
     const docBefore = this.sessionState.doc;
     this.applying = true;
+    let sessionTr: Transaction | undefined;
     try {
-      this.sessionState = this.sessionState.update({
+      sessionTr = this.sessionState.update({
         changes,
         filter: false,
-        annotations: [isolateHistory.of("full")],
-      }).state;
+        annotations: sessionHistoryAnnotations(trs),
+      });
+      this.sessionState = sessionTr.state;
       this.forward(changes, id);
       if (slot.view) {
         slot.view.update(trs);
@@ -171,7 +201,7 @@ export class SyncEngine {
     } finally {
       this.applying = false;
     }
-    this.afterDocument?.(changes, id, docBefore);
+    if (sessionTr) this.afterDocument?.(changes, id, docBefore, sessionTr);
   }
 
   dispatchSpecs(id: ViewId, specs: TransactionSpec[]): void {
@@ -184,18 +214,22 @@ export class SyncEngine {
   applySession(spec: TransactionSpec): ChangeSet {
     if (this.applying) throw new Error("reentrant session apply");
     this.applying = true;
-    let changes: ChangeSet;
+    let changes: ChangeSet | undefined;
     const docBefore = this.sessionState.doc;
+    let tr: Transaction | undefined;
     try {
-      const tr = this.sessionState.update(spec);
+      tr = this.sessionState.update({
+        ...spec,
+        annotations: [isolateHistory.of("full"), ...annotationList(spec)],
+      });
       changes = tr.changes;
       this.sessionState = tr.state;
       if (!changes.empty) this.forward(changes, null);
     } finally {
       this.applying = false;
     }
-    if (!changes.empty) this.afterDocument?.(changes, null, docBefore);
-    return changes;
+    if (tr && changes && !changes.empty) this.afterDocument?.(changes, null, docBefore, tr);
+    return changes ?? ChangeSet.empty(docBefore.length);
   }
 
   acceptSession(tr: Transaction): void {
@@ -208,32 +242,47 @@ export class SyncEngine {
     } finally {
       this.applying = false;
     }
-    if (tr.docChanged) this.afterDocument?.(tr.changes, null, docBefore);
+    if (tr.docChanged) this.afterDocument?.(tr.changes, null, docBefore, tr);
   }
 
-  reconfigure(id: ViewId, chrome: Extension): void {
+  reconfigure(id: ViewId, chrome: Extension, park?: (state: EditorState) => EditorSelection): void {
     const slot = this.require(id);
     const tr = slot.state.update({
       effects: slot.compartment.reconfigure(chrome),
       filter: false,
       annotations: [Transaction.addToHistory.of(false)],
     });
+    const parked = park?.(tr.state);
+    const parkTr =
+      parked && !parked.eq(tr.state.selection)
+        ? tr.state.update({
+            selection: parked,
+            filter: false,
+            annotations: [Transaction.addToHistory.of(false)],
+          })
+        : null;
+    const trs = parkTr ? [tr, parkTr] : [tr];
     if (slot.view) {
-      slot.view.update([tr]);
+      slot.view.update(trs);
       slot.state = slot.view.state;
     } else {
-      slot.state = tr.state;
+      slot.state = parkTr ? parkTr.state : tr.state;
     }
   }
 
   replaceDocument(doc: string): void {
     this.sessionState = EditorState.create({
       doc,
-      extensions: [history()],
+      extensions: [this.historyExt],
     });
   }
 
-  afterDocument?: (changes: ChangeSet, originId: ViewId | null, docBefore: Text) => void;
+  afterDocument?: (
+    changes: ChangeSet,
+    originId: ViewId | null,
+    docBefore: Text,
+    tr: Transaction,
+  ) => void;
   afterLocal?: (id: ViewId, trs: readonly Transaction[]) => void;
 
   private forward(changes: ChangeSet, originId: ViewId | null): void {
@@ -260,6 +309,6 @@ export class SyncEngine {
   }
 }
 
-export function createSync(doc: string): SyncEngine {
-  return new SyncEngine(doc);
+export function createSync(doc: string, opts?: SyncOptions): SyncEngine {
+  return new SyncEngine(doc, opts);
 }

@@ -38,6 +38,7 @@ src/
   api.ts                   öffentliche Typen (§ 12)
   theme.css                Widget-Klassen für Hosts
   index.ts                 öffentliche API (§ 12) — einziger Exportpunkt für Hosts
+  debug.ts                 Debug-Inspektion (`synoptic-editor/debug`) — nicht § 12
 
 examples/
   host/                    Beispiel-Host; importiert nur `src/index.ts`
@@ -110,7 +111,7 @@ Interna werden zu Vertrag, sobald jemand sie benutzt.
 
 ## 4 · Testebenen und Agenten-Budget
 
-Aus dem Marli-Vorgehen übernommen, weil es sich dort bewährt hat.
+Dreistufiges Testbudget — gezielt, Zweig, Tor — wie in der Host-Suite etabliert.
 
 | Ebene | Wann | Befehl |
 | ----- | ---- | ------ |

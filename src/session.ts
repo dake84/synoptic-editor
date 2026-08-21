@@ -2,12 +2,12 @@
  * Session: one document, one timeline, many views (SPEC.md § 3, § 7.3, § 11, § 12).
  */
 
-import { EditorSelection, Transaction, type Extension } from "@codemirror/state";
+import { EditorSelection, EditorState, Transaction, type ChangeSet, type Extension, type Text } from "@codemirror/state";
 import { Compartment } from "@codemirror/state";
-import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
+import { undo as cmUndo, redo as cmRedo, undoDepth } from "@codemirror/commands";
 import { EditorView, keymap } from "@codemirror/view";
 import { DirtyState } from "./core/dirty.js";
-import { invertChangeSet } from "./core/document.js";
+import { invertChangeSet, makeChangeSet } from "./core/document.js";
 import { planFieldWrite, wouldBreakYamlValue } from "./core/frontmatter.js";
 import {
   findInDocument,
@@ -33,6 +33,8 @@ import {
   setFindHighlights,
   setFindQuery,
 } from "./view/find-decorations.js";
+import { headingUnitGuards } from "./view/guards/heading-units.js";
+import { parkSelectionInState } from "./view/guards/park-selection.js";
 import { frontmatterLockFilter, wysiwygGuards } from "./view/guards/wysiwyg.js";
 import {
   headingStampField,
@@ -74,6 +76,7 @@ export type { CreateSessionOptions, CreateViewOptions, Policy, SessionEvent };
 
 export interface ResolvedPolicy {
   structureEditingInWysiwyg: "locked" | "allowed";
+  headingEditingInWysiwyg: "inline" | "locked";
   frontmatterInWysiwyg: "form" | "hidden";
   pillFields: string[];
   inlineRefStyle: InlineRefStyle;
@@ -105,12 +108,14 @@ interface ViewSlot {
   findHits: SearchHit[];
   findQuery: string;
   findMode: "view" | "document";
+  findMatch: { caseSensitive: boolean; regex: boolean };
   findActive: number;
   rangeField: ReturnType<typeof createScopeRangeField>;
   compartment: Compartment;
   hostExtensions: Extension[];
   presentationExtensions: Partial<Record<Presentation, Extension[]>>;
   handle: ViewHandle;
+  scrollFrozen: boolean;
 }
 
 function renderRangeOf(tree: Tree, scope: ViewScope): Range | null {
@@ -166,32 +171,32 @@ export class Session implements PublicSession {
     this.schema = opts.schema;
     this.policy = {
       structureEditingInWysiwyg: opts.policy?.structureEditingInWysiwyg ?? "locked",
+      headingEditingInWysiwyg: opts.policy?.headingEditingInWysiwyg ?? "inline",
       frontmatterInWysiwyg: opts.policy?.frontmatterInWysiwyg ?? "form",
       pillFields: opts.policy?.pillFields ?? [],
       inlineRefStyle: opts.policy?.inlineRefStyle ?? "attribute-block",
     };
-    this.sync = createSync(opts.doc);
+    this.sync = createSync(opts.doc, { newGroupDelay: opts.newGroupDelay });
     this.timeline = createTimeline(opts.timeline as TimelineImpl | undefined);
     this.tracked = createTrackedPositionRegistry();
     this.treeState = projectTree(opts.doc, opts.schema);
     this.dirty.markPersisted(opts.doc, this.treeState);
+    if (process.env.NODE_ENV !== "production") {
+      Object.defineProperty(this, Symbol.for("synoptic.debug.inspectDirty"), {
+        enumerable: false,
+        value: () => this.dirty.inspect(this.document, this.treeState),
+      });
+    }
     this.tracked.onInvalidate((id) => this.emit({ type: "tracked", id }));
-    this.sync.afterDocument = (changes, originId, docBefore) => {
+    this.sync.afterDocument = (changes, originId, docBefore, tr) => {
       this.tracked.mapThrough(changes);
       this.treeState = projectTree(this.sync.document, this.schema);
-      if (!this.hushTimeline && originId) {
-        let from = 0;
-        let seen = false;
-        changes.iterChanges((fromA) => {
-          if (!seen) {
-            from = fromA;
-            seen = true;
-          }
-        });
-        const target = nodeAtPosition(projectTree(docBefore.toString(), this.schema), from);
-        this.timeline.pushText(changes, invertChangeSet(docBefore.toString(), changes), {
-          targetNodeId: target?.id,
-        });
+      if (
+        !this.hushTimeline &&
+        originId &&
+        tr.annotation(Transaction.addToHistory) !== false
+      ) {
+        this.recordOriginText(changes, docBefore);
       }
       this.emitScopeLost();
       this.emit({ type: "document" });
@@ -332,6 +337,42 @@ export class Session implements PublicSession {
     return true;
   }
 
+  applyDocumentPatch(nextDoc: string, targetNodeId?: string): boolean {
+    const before = this.document;
+    if (before === nextDoc) return false;
+    const changes = makeChangeSet(before.length, { from: 0, to: before.length, insert: nextDoc });
+    this.hushTimeline = true;
+    this.sync.applySession({
+      changes,
+      filter: false,
+    });
+    this.hushTimeline = false;
+    this.timeline.pushText(changes, invertChangeSet(before, changes), {
+      targetNodeId: targetNodeId ?? this.treeState.roots[0],
+    });
+    return true;
+  }
+
+  /** Origin typing: follow CM6 grouping so timeline text entries stay 1:1 with history (U15/U17). */
+  private recordOriginText(changes: ChangeSet, docBefore: Text): void {
+    const inverse = invertChangeSet(docBefore.toString(), changes);
+    const last = this.timeline.peek();
+    if (undoDepth(this.sync.state) === this.timeline.textDepth && last?.kind === "text") {
+      this.timeline.composeLastText(changes, inverse);
+      return;
+    }
+    let from = 0;
+    let seen = false;
+    changes.iterChanges((fromA) => {
+      if (!seen) {
+        from = fromA;
+        seen = true;
+      }
+    });
+    const target = nodeAtPosition(projectTree(docBefore.toString(), this.schema), from);
+    this.timeline.pushText(changes, inverse, { targetNodeId: target?.id });
+  }
+
   undo(): void {
     const entry = this.timeline.peek();
     const result = this.timeline.undo();
@@ -342,7 +383,13 @@ export class Session implements PublicSession {
         state: this.sync.state,
         dispatch: (tr) => this.sync.acceptSession(tr),
       });
-      if (!ok) this.sync.applySession({ changes: result.changes, filter: false });
+      if (!ok) {
+        this.sync.applySession({
+          changes: result.changes,
+          filter: false,
+          annotations: [Transaction.addToHistory.of(false)],
+        });
+      }
       this.hushTimeline = false;
       this.reveal(entry && entry.kind === "text" ? entry.targetNodeId : undefined);
     } else if (entry && entry.kind === "foreign") {
@@ -359,7 +406,13 @@ export class Session implements PublicSession {
         state: this.sync.state,
         dispatch: (tr) => this.sync.acceptSession(tr),
       });
-      if (!ok) this.sync.applySession({ changes: result.changes, filter: false });
+      if (!ok) {
+        this.sync.applySession({
+          changes: result.changes,
+          filter: false,
+          annotations: [Transaction.addToHistory.of(false)],
+        });
+      }
       this.hushTimeline = false;
     }
   }
@@ -440,12 +493,14 @@ export class Session implements PublicSession {
       findHits: [],
       findQuery: "",
       findMode: "view",
+      findMatch: { caseSensitive: false, regex: false },
       findActive: -1,
       rangeField: createScopeRangeField({ from: 0, to: 0, lost: false }),
       compartment: new Compartment(),
       hostExtensions: fromPlugins?.host ?? opts.extensions ?? [],
       presentationExtensions: fromPlugins?.presentation ?? opts.presentationExtensions ?? {},
       handle: this.makeHandle(id),
+      scrollFrozen: false,
     };
     this.views.set(id, slot);
     const caret = this.caretForOpen(slot);
@@ -513,6 +568,7 @@ export class Session implements PublicSession {
 
   private chrome(slot: ViewSlot) {
     const locked = this.policy.structureEditingInWysiwyg === "locked";
+    const headingLocked = this.policy.headingEditingInWysiwyg === "locked";
     const host =
       slot.presentation === "wysiwyg"
         ? [...slot.hostExtensions, ...(slot.presentationExtensions.wysiwyg ?? [])]
@@ -530,12 +586,20 @@ export class Session implements PublicSession {
         chipAtomField(slot.rangeField, this.policy.inlineRefStyle),
         frontmatterField(slot.rangeField, this.schema, this.policy.frontmatterInWysiwyg),
         frontmatterAtomField(slot.rangeField, this.schema),
-        frontmatterLockFilter(this.schema),
+        frontmatterLockFilter(this.schema, { headingEditingLocked: headingLocked }),
         pillField(slot.rangeField, this.schema, this.policy.pillFields),
         frontmatterWriteFacet.of({
           write: (blockFrom, key, value) => this.writeFrontmatterField(blockFrom, key, value),
         }),
-        wysiwygGuards({ structureLocked: locked, inlineRefStyle: this.policy.inlineRefStyle }),
+        headingLocked
+          ? headingUnitGuards(this.schema)
+          : headingUnitGuards(this.schema, { editing: "inline" }),
+        wysiwygGuards({
+          structureLocked: locked,
+          inlineRefStyle: this.policy.inlineRefStyle,
+          schema: this.schema,
+          headingEditingLocked: headingLocked,
+        }),
         headingStampField(
           slot.rangeField,
           this.schema,
@@ -623,23 +687,36 @@ export class Session implements PublicSession {
   }
 
   private rebindScope(slot: ViewSlot, scope: ViewScope): void {
+    const sameBinding =
+      slot.scope.nodeId === scope.nodeId && slot.scope.include === scope.include;
     slot.scope = scope;
     slot.ancestry = ancestryOf(this.treeState, scope.nodeId);
     slot.lostNotified = false;
-    const range = renderRangeOf(this.treeState, scope) ?? { from: 0, to: this.document.length };
-    this.sync.dispatchSpecs(slot.id, [
-      {
-        effects: setScopeRange.of({ from: range.from, to: range.to, lost: false }),
-        filter: false,
-        annotations: [Transaction.addToHistory.of(false)],
-      },
-    ]);
-    // Scope heading hide targets the new node (SNH3).
+    if (!sameBinding) {
+      const range = renderRangeOf(this.treeState, scope) ?? { from: 0, to: this.document.length };
+      this.sync.dispatchSpecs(slot.id, [
+        {
+          effects: setScopeRange.of({ from: range.from, to: range.to, lost: false }),
+          filter: false,
+          annotations: [Transaction.addToHistory.of(false)],
+        },
+      ]);
+    }
+    // Scope heading hide targets the new node (SNH3). Same-node rebind keeps
+    // the sticky ScopeRange (EX6) instead of shrinking to a fresh subtreeRange.
     this.refreshChrome(slot);
   }
 
   private refreshChrome(slot: ViewSlot): void {
-    this.sync.reconfigure(slot.id, this.chrome(slot));
+    const park =
+      slot.presentation === "wysiwyg"
+        ? (state: EditorState) =>
+            parkSelectionInState(state, {
+              inlineRefStyle: this.policy.inlineRefStyle,
+              schema: this.schema,
+            })
+        : undefined;
+    this.sync.reconfigure(slot.id, this.chrome(slot), park);
   }
 
   private makeHandle(id: string): ViewHandle {
@@ -711,17 +788,31 @@ export class Session implements PublicSession {
       },
       setPresentation(p: Presentation) {
         const slot = session.requireSlot(id);
-        slot.presentation = p;
         const ev = session.sync.editorView(id);
-        const pos = ev ? readingLinePos(ev, viewRange(ev.state)) : session.tracked.get(slot.scrollAt)?.from;
-        if (ev) session.captureScroll(slot, ev);
-        session.refreshChrome(slot);
+        const presentationChanged = slot.presentation !== p;
+        const pos = slot.scrollFrozen
+          ? session.tracked.get(slot.scrollAt)?.from
+          : ev
+            ? readingLinePos(ev, viewRange(ev.state))
+            : session.tracked.get(slot.scrollAt)?.from;
+        if (ev && !slot.scrollFrozen) session.captureScroll(slot, ev);
+        slot.presentation = p;
+        if (slot.scrollFrozen || presentationChanged) {
+          session.refreshChrome(slot);
+        }
         const again = session.sync.editorView(id);
-        if (again && pos != null) {
+        if (again && pos != null && (slot.scrollFrozen || presentationChanged)) {
           slot.lastScrollCause = "presentation";
           scrollToPos(again, pos, "presentation");
         }
+        slot.scrollFrozen = false;
         session.emit({ type: "views" });
+      },
+      freezeScrollAnchor() {
+        const slot = session.requireSlot(id);
+        const ev = session.sync.editorView(id);
+        if (ev) session.captureScroll(slot, ev);
+        slot.scrollFrozen = true;
       },
       setGrain(rank: number) {
         const slot = session.requireSlot(id);
@@ -785,13 +876,13 @@ export class Session implements PublicSession {
         const slot = session.requireSlot(id);
         slot.hostExtensions = bags.host;
         slot.presentationExtensions = bags.presentation;
-        session.refreshChrome(slot);
+        if (!slot.scrollFrozen) session.refreshChrome(slot);
       },
       setExtensions(extensions, presentationExtensions) {
         const slot = session.requireSlot(id);
         slot.hostExtensions = extensions;
         if (presentationExtensions) slot.presentationExtensions = presentationExtensions;
-        session.refreshChrome(slot);
+        if (!slot.scrollFrozen) session.refreshChrome(slot);
       },
       coords(from: number, to: number) {
         const ev = session.sync.editorView(id);
@@ -804,12 +895,14 @@ export class Session implements PublicSession {
       get visibleNode() {
         return session.views.get(id)?.visibleNode ?? null;
       },
-      find(query: string, opts: { mode: "view" | "document"; activate?: boolean }) {
+      find(query: string, opts: { mode: "view" | "document"; activate?: boolean; caseSensitive?: boolean; regex?: boolean }) {
         const slot = session.requireSlot(id);
         const range =
           opts.mode === "view"
             ? viewRange(session.sync.getState(id))
             : { from: 0, to: session.document.length, lost: false };
+        const caseSensitive = Boolean(opts.caseSensitive);
+        const regex = Boolean(opts.regex);
         const hits = findInDocument(session.document, {
           query,
           range: { from: range.from, to: range.to },
@@ -820,10 +913,13 @@ export class Session implements PublicSession {
           tree: session.treeState,
           hideHeadingNodeId:
             slot.presentation === "wysiwyg" && !slot.showNodeHeading ? slot.scope.nodeId : undefined,
+          caseSensitive,
+          regex,
         });
         slot.findHits = hits;
         slot.findQuery = query;
         slot.findMode = opts.mode;
+        slot.findMatch = { caseSensitive, regex };
         const activate = opts.activate !== false;
         slot.findActive = hits.length > 0 && activate ? 0 : -1;
         if (activate) {
@@ -901,9 +997,11 @@ export class Session implements PublicSession {
         slot.findActive = -1;
         return { prose: plan.prose, metadata: plan.metadata, rejected: plan.rejected };
       },
-      focus() {
+      focus(opts?: { preventScroll?: boolean }) {
         session.focused = id;
-        session.sync.editorView(id)?.focus();
+        const ev = session.sync.editorView(id);
+        if (opts?.preventScroll) ev?.contentDOM.focus({ preventScroll: true });
+        else ev?.focus();
         session.emit({ type: "focus", viewId: id });
       },
       /** Test/harness only — not on the public ViewHandle (SPEC § 12). */
@@ -1033,6 +1131,7 @@ export class Session implements PublicSession {
   }
 
   private captureScroll(slot: ViewSlot, ev: EditorView): void {
+    if (slot.scrollFrozen) return;
     const rec = this.tracked.get(slot.scrollAt);
     if (!rec) return;
     const pos = readingLinePos(ev, viewRange(ev.state));

@@ -29,11 +29,16 @@ describe("DirtyState", () => {
     let tree = projectTree(doc, FIXTURE_SCHEMA);
     dirty.markPersisted(doc, tree);
 
+    const kid = tree.nodes.get("kid")!;
+    const parent = tree.nodes.get("parent")!;
     expect(dirty.isDirty(doc, tree, "parent")).toBe(false);
     expect(dirty.isDirty(doc, tree, "kid")).toBe(false);
     expect(dirty.isSubtreeDirty(doc, tree, "parent")).toBe(false);
+    expect(dirty.ownBaselineOf("kid")).toBe(doc.slice(kid.ownRange.from, kid.ownRange.to));
+    expect(dirty.subtreeBaselineOf("parent")).toBe(
+      doc.slice(parent.subtreeRange.from, parent.subtreeRange.to),
+    );
 
-    const kid = tree.nodes.get("kid")!;
     const insertAt = kid.heading.to + 1;
     const cs = makeChangeSet(doc.length, { from: insertAt, to: insertAt, insert: "X" });
     doc = applyChangeSet(doc, cs);

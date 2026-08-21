@@ -4,7 +4,7 @@
 
 import { findChips, type InlineRefStyle } from "./chips.js";
 import { fieldByKey, parseFrontmatterBlock } from "./frontmatter.js";
-import { findHtmlComments, overlapsAny } from "./html-comments.js";
+import { findHtmlComments } from "./html-comments.js";
 import { findInlineMarks, inlineDelimiterRanges } from "./inline-markers.js";
 import { projectTree } from "./tree.js";
 import type { Range, StructureSchema, Tree } from "./types.js";
@@ -20,7 +20,15 @@ export interface SearchHit {
 
 export type SearchPresentation = "source" | "wysiwyg";
 
-export interface SearchOptions {
+/** How the query matches inside a projected segment (F12/F13). */
+export type FindMatchOptions = {
+  /** Default `false`: "ARIA" matches "aria". */
+  caseSensitive?: boolean;
+  /** Default `false`: query is literal. `true`: JS regex; invalid pattern → no hits. */
+  regex?: boolean;
+};
+
+export interface SearchOptions extends FindMatchOptions {
   query: string;
   /** Document range to search (view mode clips to ScopeRange). */
   range: Range;
@@ -39,6 +47,8 @@ interface Segment {
   from: number;
   to: number;
   class: SearchHitClass;
+  /** W7 synthetic label — not a document slice (F6). */
+  display?: string;
 }
 
 function headingMarkerEnd(doc: string, headingFrom: number): number {
@@ -48,11 +58,26 @@ function headingMarkerEnd(doc: string, headingFrom: number): number {
   return m ? headingFrom + m[1]!.length : headingFrom;
 }
 
+const MASK_META = new Set(["#", "*", "_", ">", "`", "<", "\\", "-"]);
+
+/** Hide the backslash of a mask pair (L2) — the escaped char stays searchable. */
+function maskBackslashHoles(doc: string, from: number, to: number): Range[] {
+  const out: Range[] = [];
+  for (let i = from; i < to; i++) {
+    if (doc[i] !== "\\") continue;
+    const next = doc[i + 1];
+    if (next !== undefined && MASK_META.has(next) && i + 2 <= to) {
+      out.push({ from: i, to: i + 1 });
+      i++;
+    }
+  }
+  return out;
+}
+
 /**
  * Build searchable document segments for the given presentation (F4–F9).
  */
 export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
-  const tree = opts.tree ?? projectTree(doc, opts.schema);
   const { from, to } = opts.range;
   if (opts.query === "" || from >= to) return [];
 
@@ -60,6 +85,7 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     return [{ from, to, class: "prose" }];
   }
 
+  const tree = opts.tree ?? projectTree(doc, opts.schema);
   // wysiwyg: reader-visible projection
   const segments: Segment[] = [];
   const nodes = [...tree.nodes.values()].sort((a, b) => a.ownRange.from - b.ownRange.from);
@@ -94,6 +120,7 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
       const titleHoles: Range[] = [
         ...comments,
         ...inlineDelimiterRanges(findInlineMarks(doc, titleFrom, titleTo)),
+        ...maskBackslashHoles(doc, titleFrom, titleTo),
       ];
       segments.push(...proseMinusHoles(titleFrom, titleTo, titleHoles, "prose"));
     }
@@ -102,9 +129,19 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     if (bodyStart >= ownTo) continue;
 
     const style = opts.inlineRefStyle ?? "attribute-block";
-    const chips = findChips(doc, bodyStart, ownTo, style).filter((c) => !overlapsAny(c, comments));
+    const chips = findChips(doc, bodyStart, ownTo, style).filter(
+      (c) => !comments.some((com) => com.from <= c.from && com.to >= c.to),
+    );
     const holes: Range[] = comments.map((c) => ({ from: c.from, to: c.to }));
+    const synthetic: Segment[] = [];
     for (const chip of chips) {
+      if (!chip.textNode) {
+        holes.push({ from: chip.from, to: chip.to });
+        if (chip.label) {
+          synthetic.push({ from: chip.from, to: chip.to, class: "prose", display: chip.label });
+        }
+        continue;
+      }
       if (chip.from < chip.labelFrom) holes.push({ from: chip.from, to: chip.labelFrom });
       if (chip.labelTo < chip.to) holes.push({ from: chip.labelTo, to: chip.to });
     }
@@ -112,7 +149,9 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     for (const d of inlineDelimiterRanges(findInlineMarks(doc, bodyStart, ownTo))) {
       holes.push(d);
     }
+    holes.push(...maskBackslashHoles(doc, bodyStart, ownTo));
     segments.push(...proseMinusHoles(bodyStart, ownTo, holes, "prose"));
+    segments.push(...synthetic);
   }
 
   return mergeAdjacent(segments.filter((s) => s.from < s.to));
@@ -152,6 +191,10 @@ function mergeAdjacent(segments: Segment[]): Segment[] {
   for (let i = 1; i < sorted.length; i++) {
     const prev = out[out.length - 1]!;
     const cur = sorted[i]!;
+    if (prev.display !== undefined || cur.display !== undefined) {
+      out.push({ ...cur });
+      continue;
+    }
     if (cur.class === prev.class && cur.from <= prev.to) {
       prev.to = Math.max(prev.to, cur.to);
     } else if (cur.from < prev.to && cur.class !== prev.class) {
@@ -164,29 +207,118 @@ function mergeAdjacent(segments: Segment[]): Segment[] {
       out.push({ ...cur });
     }
   }
-  return out.filter((s) => s.from < s.to);
+  return out.filter((s) => s.from < s.to || (s.display !== undefined && s.display.length > 0));
 }
 
 let hitSeq = 0;
 
+type CompiledQuery =
+  | { kind: "literal"; needle: string; caseSensitive: boolean }
+  | { kind: "regex"; re: RegExp };
+
+function compileQuery(query: string, opts: FindMatchOptions): CompiledQuery | null {
+  if (opts.regex) {
+    try {
+      const flags = opts.caseSensitive ? "gu" : "giu";
+      return { kind: "regex", re: new RegExp(query, flags) };
+    } catch {
+      return null;
+    }
+  }
+  return {
+    kind: "literal",
+    needle: opts.caseSensitive ? query : query.toLowerCase(),
+    caseSensitive: Boolean(opts.caseSensitive),
+  };
+}
+
+function matchInText(text: string, compiled: CompiledQuery): { from: number; to: number }[] {
+  const out: { from: number; to: number }[] = [];
+  if (compiled.kind === "regex") {
+    compiled.re.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = compiled.re.exec(text)) !== null) {
+      if (match[0].length === 0) {
+        compiled.re.lastIndex += 1;
+        continue;
+      }
+      out.push({ from: match.index, to: match.index + match[0].length });
+    }
+    return out;
+  }
+  const hay = compiled.caseSensitive ? text : text.toLowerCase();
+  const needle = compiled.needle;
+  if (!needle) return out;
+  let start = 0;
+  while (start <= hay.length) {
+    const idx = hay.indexOf(needle, start);
+    if (idx < 0) break;
+    out.push({ from: idx, to: idx + needle.length });
+    start = idx + Math.max(1, needle.length);
+  }
+  return out;
+}
+
 export function findInDocument(doc: string, opts: SearchOptions): SearchHit[] {
   const q = opts.query;
   if (!q) return [];
-  const hits: SearchHit[] = [];
-  for (const seg of searchSegments(doc, opts)) {
-    const text = doc.slice(seg.from, seg.to);
-    let start = 0;
-    while (start <= text.length) {
-      const idx = text.indexOf(q, start);
-      if (idx < 0) break;
-      hits.push({
-        id: `hit-${++hitSeq}`,
-        from: seg.from + idx,
-        to: seg.from + idx + q.length,
-        class: seg.class,
-      });
-      start = idx + Math.max(1, q.length);
+  const compiled = compileQuery(q, opts);
+  if (!compiled) return [];
+  const segs = searchSegments(doc, opts);
+  if (segs.length === 0) return [];
+
+  let haystack = "";
+  const map: {
+    projFrom: number;
+    projTo: number;
+    sourceFrom: number;
+    sourceTo: number;
+    class: SearchHitClass;
+    replace: boolean;
+  }[] = [];
+  for (const seg of segs) {
+    const text = seg.display ?? doc.slice(seg.from, seg.to);
+    const projFrom = haystack.length;
+    haystack += text;
+    map.push({
+      projFrom,
+      projTo: haystack.length,
+      sourceFrom: seg.from,
+      sourceTo: seg.to,
+      class: seg.class,
+      replace: seg.display !== undefined,
+    });
+  }
+
+  const toSource = (proj: number, preferEnd: boolean): { offset: number; class: SearchHitClass } => {
+    for (let i = 0; i < map.length; i++) {
+      const seg = map[i]!;
+      if (proj < seg.projFrom || proj > seg.projTo) continue;
+      if (!preferEnd && proj === seg.projTo && proj === map[i + 1]?.projFrom) continue;
+      if (seg.replace) {
+        return { offset: preferEnd ? seg.sourceTo : seg.sourceFrom, class: seg.class };
+      }
+      const offset = seg.sourceFrom + (proj - seg.projFrom);
+      return { offset: Math.min(offset, seg.sourceTo), class: seg.class };
     }
+    const last = map[map.length - 1]!;
+    if (proj >= last.projTo) return { offset: last.sourceTo, class: last.class };
+    return { offset: map[0]!.sourceFrom, class: map[0]!.class };
+  };
+
+  const hits: SearchHit[] = [];
+  for (const span of matchInText(haystack, compiled)) {
+    const start = toSource(span.from, false);
+    const end = toSource(span.to, true);
+    let from = start.offset;
+    let to = end.offset;
+    if (to < from) [from, to] = [to, from];
+    hits.push({
+      id: `hit-${++hitSeq}`,
+      from,
+      to,
+      class: start.class,
+    });
   }
   return hits;
 }

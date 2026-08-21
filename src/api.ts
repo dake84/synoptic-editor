@@ -5,7 +5,7 @@
 
 import type { Extension } from "@codemirror/state";
 import type { InlineRefStyle } from "./core/chips.js";
-import type { SearchHit, SearchHitClass } from "./core/search.js";
+import type { SearchHit, SearchHitClass, FindMatchOptions } from "./core/search.js";
 import type { StructureAction } from "./core/structure.js";
 import type { ForeignTimelineCommand } from "./core/timeline.js";
 import type { ResolvedTrackedPosition, TrackedPositionId } from "./core/tracked-position.js";
@@ -14,7 +14,7 @@ import type { PluginContribution } from "./view/plugin-registry.js";
 import type { IncludeMode, Presentation } from "./view/presentation.js";
 
 export type { Range, StructureLevel, StructureSchema, Tree, TreeNode } from "./core/types.js";
-export type { SearchHit, SearchHitClass } from "./core/search.js";
+export type { SearchHit, SearchHitClass, FindMatchOptions } from "./core/search.js";
 export type { StructureAction } from "./core/structure.js";
 export type { TrackedPositionId, ResolvedTrackedPosition } from "./core/tracked-position.js";
 export type { IncludeMode, Presentation } from "./view/presentation.js";
@@ -24,6 +24,11 @@ export type { PluginContribution, PluginSlot } from "./view/plugin-registry.js";
 
 export interface Policy {
   structureEditingInWysiwyg?: "locked" | "allowed";
+  /**
+   * `inline` (default): heading title stays editable (L4).
+   * `locked`: schema heading + YAML fence are one atomic unit (LH1–LH3).
+   */
+  headingEditingInWysiwyg?: "inline" | "locked";
   frontmatterInWysiwyg?: "form" | "hidden";
   pillFields?: string[];
   inlineRefStyle?: InlineRefStyle;
@@ -41,6 +46,12 @@ export interface CreateSessionOptions {
   policy?: Policy;
   timeline?: Timeline;
   strings?: Record<string, string>;
+  /**
+   * Idle delay in milliseconds before adjacent typing starts a new undo group.
+   * Passed through to CM6 `history({ newGroupDelay })`. Default 500.
+   * The timeline follows that grouping (U15/U17) — hosts do not keep a second clock.
+   */
+  newGroupDelay?: number;
 }
 
 export interface ViewScope {
@@ -76,7 +87,7 @@ export interface CreateViewOptions {
    */
   plugins?: PluginContribution[];
   /**
-   * @deprecated Prefer `plugins`. Raw bags kept during Marli migration only.
+   * @deprecated Prefer `plugins`. Raw bags kept during host migration only.
    */
   extensions?: Extension[];
   /** @deprecated Prefer `plugins` with slot source/wysiwyg. */
@@ -119,6 +130,12 @@ export interface ViewHandle {
   getState(): ViewRestoreState;
   setScope(nodeId: string, opts?: { include?: IncludeMode }): void;
   setPresentation(p: Presentation): void;
+  /**
+   * Capture the reading-line document offset into `scrollAt` and freeze it
+   * until the next `setPresentation` (V11). Host CSS/plugin layout must not
+   * run before this call.
+   */
+  freezeScrollAnchor(): void;
   setGrain(rank: number): void;
   /** Toggle scope-heading visibility in wysiwyg (SNH3). No remount. */
   setShowNodeHeading(show: boolean): void;
@@ -128,7 +145,8 @@ export interface ViewHandle {
   reveal(from: number, to: number, cause: string): void;
   /**
    * Replace named host plugins (same rules as `createView`). Reconfigures
-   * chrome; does not remount or clear history (I3/U8).
+   * chrome unless `scrollAt` is frozen pending `setPresentation` (V11).
+   * Does not remount or clear history (I3/U8).
    */
   setPlugins(plugins: PluginContribution[]): void;
   /**
@@ -146,12 +164,15 @@ export interface ViewHandle {
   /** Scroll owner element (I4), or null when unmounted (G5 / G6). */
   readonly scrollPort: HTMLElement | null;
   readonly visibleNode: string | null;
-  find(query: string, opts: { mode: "view" | "document"; activate?: boolean }): SearchHit[];
+  find(
+    query: string,
+    opts: { mode: "view" | "document"; activate?: boolean } & FindMatchOptions,
+  ): SearchHit[];
   findNext(): SearchHit | null;
   findPrev(): SearchHit | null;
   replace(hitId: string, text: string): void;
   replaceAll(text: string, opts?: { classes?: SearchHitClass[] }): ReplaceAllResult;
-  focus(): void;
+  focus(opts?: { preventScroll?: boolean }): void;
 }
 
 /** Session contract (SPEC.md § 12). */
@@ -173,6 +194,8 @@ export interface Session {
   undo(): void;
   redo(): void;
   apply(action: StructureAction): boolean;
+  /** Replace session document in one undoable step (unlike replaceDocument). */
+  applyDocumentPatch(nextDoc: string, targetNodeId?: string): boolean;
   markPersisted(nodeId?: string): void;
   replaceDocument(doc: string): void;
   subscribe(fn: (e: SessionEvent) => void): () => void;
