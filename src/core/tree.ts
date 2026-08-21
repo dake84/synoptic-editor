@@ -18,6 +18,24 @@ interface RawHeading {
   afterHeading: number;
 }
 
+/**
+ * Matches a markdown ATX heading line. Parsed by hand rather than with a
+ * `[ \t]+(.*)$`-style regex: `.` also matches tabs/spaces, so the boundary
+ * between the required whitespace run and the captured rest is ambiguous —
+ * polynomially slow on inputs with long tab runs (CodeQL js/polynomial-redos).
+ */
+function matchHeadingLine(line: string): { depth: number; title: string } | null {
+  let i = 0;
+  while (i < line.length && line[i] === "#") i++;
+  if (i === 0 || i > 6) return null;
+  if (i >= line.length || (line[i] !== " " && line[i] !== "\t")) return null;
+  let j = i;
+  while (j < line.length && (line[j] === " " || line[j] === "\t")) j++;
+  let end = line.length;
+  while (end > j && (line[end - 1] === " " || line[end - 1] === "\t")) end--;
+  return { depth: i, title: line.slice(j, end) };
+}
+
 function depthToRank(schema: StructureSchema): Map<number, number> {
   const m = new Map<number, number>();
   for (const level of schema.levels) m.set(level.headingDepth, level.rank);
@@ -83,9 +101,9 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
         }
         if (k < lines.length) {
           const hLine = lines[k]!;
-          const hm = /^(#{1,6})[ \t]+(.*)$/.exec(hLine);
+          const hm = matchHeadingLine(hLine);
           if (hm && !coveredByFence(look, fences)) {
-            const depth = hm[1]!.length;
+            const depth = hm.depth;
             const rank = rankOf.get(depth);
             if (rank !== undefined) {
               const headingFrom = look;
@@ -95,7 +113,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
               out.push({
                 id,
                 rank,
-                title: hm[2]!,
+                title: hm.title,
                 start: lineStart,
                 frontmatter: { from: lineStart, to: endOffset },
                 heading: { from: headingFrom, to: headingTo },
@@ -114,9 +132,9 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
       continue;
     }
 
-    const hm = /^(#{1,6})[ \t]+(.*)$/.exec(line);
+    const hm = matchHeadingLine(line);
     if (hm && !coveredByFence(lineStart, fences)) {
-      const depth = hm[1]!.length;
+      const depth = hm.depth;
       const rank = rankOf.get(depth);
       if (rank !== undefined) {
         const headingFrom = lineStart;
@@ -125,7 +143,7 @@ function scanHeadings(doc: string, schema: StructureSchema): RawHeading[] {
         out.push({
           id: `auto-${++autoId}`,
           rank,
-          title: hm[2]!,
+          title: hm.title,
           start: headingFrom,
           frontmatter: null,
           heading: { from: headingFrom, to: headingTo },
