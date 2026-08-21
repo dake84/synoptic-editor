@@ -60,14 +60,14 @@
   "devDependencies": {
     "@eslint/js": "^9.18.0",
     "@playwright/test": "^1.55.0",
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.2.0",
     "esbuild": "^0.28.2",
-    "eslint": "^9.18.0",
-    "globals": "^15.14.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0",
     "happy-dom": "^20.11.2",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.20.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
