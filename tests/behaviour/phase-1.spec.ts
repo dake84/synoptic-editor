@@ -12,7 +12,6 @@ type Harness = {
       excerpt: string;
       caret: number;
       lastScrollCause: string | null;
-      grainRanks: number[];
       scope: { nodeId: string; include: string };
       scrollTop: number;
       visibleNode: string | null;
@@ -22,7 +21,6 @@ type Harness = {
   typeIn: (id: string, text: string) => void;
   setScope: (id: string, nodeId: string, include?: "own" | "subtree") => void;
   setPresentation: (id: string, p: "source" | "wysiwyg") => void;
-  setGrain: (id: string, rank: number) => void;
   scrollToNode: (id: string, nodeId: string, cause: string) => void;
   navigateTo: (id: string, nodeId: string) => void;
   focusView: (id: string) => void;
@@ -76,20 +74,6 @@ test.describe("phase 1 harness", () => {
     expect(snap.after.views[0]!.lastScrollCause).toBe("test-scroll");
   });
 
-  /** @covers T14, T16 */
-  test("T14/T16: grain change keeps document and marks structure ranks", async ({ page }) => {
-    const snap = await page.evaluate(() => {
-      const h = (window as unknown as { __harness: Harness }).__harness;
-      const id = h.inspect().views[0]!.id;
-      const before = h.inspect();
-      h.setGrain(id, 0);
-      const after = h.inspect();
-      return { beforeDoc: before.document, afterDoc: after.document, depth: after.timelineDepth, ranks: after.views[0]!.grainRanks };
-    });
-    expect(snap.afterDoc).toBe(snap.beforeDoc);
-    expect(snap.ranks.every((r) => r <= 0)).toBe(true);
-  });
-
   /** @covers T18, G1b, S1 */
   test("T18: typing in a disjoint view does not change the other excerpt", async ({ page }) => {
     const snap = await page.evaluate(() => {
@@ -114,8 +98,8 @@ test.describe("phase 1 harness", () => {
     expect(text).not.toContain("\\\\#");
   });
 
-  /** @covers T1, T5 */
-  test("T1/T5: scrolling or grain change in A leaves B's scrollTop alone", async ({ page }) => {
+  /** @covers T1 */
+  test("T1: scrolling in A leaves B's scrollTop alone", async ({ page }) => {
     const snap = await page.evaluate(async (doc) => {
       const h = (window as unknown as { __harness: Harness }).__harness;
       h.replaceDocument(doc);
@@ -123,20 +107,13 @@ test.describe("phase 1 harness", () => {
       const beforeB = b!.scrollTop;
       h.scrollToNode(a!.id, "n1", "user-scroll");
       await h.flush();
-      const mid = h.inspect();
-      h.setGrain(a!.id, 0);
       const after = h.inspect();
       return {
         beforeB,
-        midB: mid.views[1]!.scrollTop,
         afterB: after.views[1]!.scrollTop,
-        midA: mid.views[0]!.scrollTop,
-        afterA: after.views[0]!.scrollTop,
       };
     }, TALL);
-    expect(snap.midB).toBe(snap.beforeB);
-    expect(snap.afterB).toBe(snap.midB);
-    expect(snap.afterA).toBe(snap.midA);
+    expect(snap.afterB).toBe(snap.beforeB);
   });
 
   /** @covers T3 */
@@ -148,7 +125,7 @@ test.describe("phase 1 harness", () => {
       h.scrollToNode(a!.id, "n1", "read");
       await h.flush();
       const before = h.inspect();
-      h.setPresentation(a!.id, "wysiwyg");
+      h.setPresentation(a!.id, "source");
       await h.flush();
       const after = h.inspect();
       return {

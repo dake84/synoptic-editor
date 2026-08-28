@@ -38,15 +38,13 @@ function session(doc = DOC) {
 }
 
 describe("phase 1 remaining cases", () => {
-  /** @covers T15, T17 */
-  it("scope and grain changes keep the same view mounted and a defined end state", () => {
+  /** @covers T15 */
+  it("scope changes keep the same view mounted and a defined end state", () => {
     const s = session();
-    const v = s.createView({ scope: { nodeId: "n0", include: "subtree" }, grain: 3 });
+    const v = s.createView({ scope: { nodeId: "n0", include: "subtree" } });
     const id = v.id;
     const depth = s.timelineDepth;
-    v.setGrain(0);
     v.setScope("n1", { include: "own" });
-    v.setGrain(2);
     expect(v.id).toBe(id);
     expect(s.scopeOf(id)).toEqual({ nodeId: "n1", include: "own" });
     expect(s.timelineDepth).toBe(depth);

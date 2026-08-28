@@ -145,8 +145,6 @@ function paintViewBar(id: string): void {
       presentation
       <button type="button" data-cmd="presentation" data-id="${id}" data-p="source">source</button>
       <button type="button" data-cmd="presentation" data-id="${id}" data-p="wysiwyg">wysiwyg</button>
-      grain
-      ${[0, 1, 2, 3].map((r) => `<button type="button" data-cmd="grain" data-id="${id}" data-rank="${r}">${r}</button>`).join("")}
     </div>
     <div class="row">
       scope ${nodeSelect("scope", scope.nodeId)}
@@ -251,7 +249,6 @@ function paintFactory(): void {
       ${nodeSelect("open-node")}
       <select name="open-include"><option value="subtree">subtree</option><option value="own">own</option></select>
       <select name="open-pres"><option value="source">source</option><option value="wysiwyg">wysiwyg</option></select>
-      <select name="open-grain">${[0, 1, 2, 3].map((r) => `<option value="${r}">grain ${r}</option>`).join("")}</select>
       <button type="button" data-cmd="open">open</button>
     </fieldset>
     <fieldset>
@@ -336,7 +333,6 @@ function onChromeClick(ev: Event): void {
     if (state) api.openFromState(state);
   } else if (cmd === "include" && id) api.setScope(id, session.scopeOf(id).nodeId, btn.dataset.include as IncludeMode);
   else if (cmd === "presentation" && id) api.setPresentation(id, btn.dataset.p as Presentation);
-  else if (cmd === "grain" && id) api.setGrain(id, Number(btn.dataset.rank));
   else if (cmd === "set-scope" && id) {
     const nodeId = named<HTMLSelectElement>(root, "scope")?.value;
     if (nodeId) api.setScope(id, nodeId);
@@ -359,7 +355,6 @@ function onChromeClick(ev: Event): void {
       nodeId: named<HTMLSelectElement>(factory, "open-node")?.value,
       include: named<HTMLSelectElement>(factory, "open-include")?.value as IncludeMode,
       presentation: named<HTMLSelectElement>(factory, "open-pres")?.value as Presentation,
-      grain: Number(named<HTMLSelectElement>(factory, "open-grain")?.value),
     });
   } else if (cmd === "delete-node") {
     const nodeId = named<HTMLSelectElement>(document.getElementById("factory-bar")!, "struct-node")?.value;
@@ -410,12 +405,10 @@ function openView(opts: {
   nodeId?: string;
   include?: IncludeMode;
   presentation?: Presentation;
-  grain?: number;
 }): string {
   const handle = session.createView({
     scope: opts.nodeId ? { nodeId: opts.nodeId, include: opts.include } : undefined,
     presentation: opts.presentation,
-    grain: opts.grain,
   });
   handle.mount(pane(handle.id));
   return handle.id;
@@ -464,7 +457,6 @@ export type HarnessApi = {
   focusView: (id: string) => void;
   setScope: (id: string, nodeId: string, include?: IncludeMode) => void;
   setPresentation: (id: string, p: Presentation) => void;
-  setGrain: (id: string, rank: number) => void;
   navigateTo: (id: string, nodeId: string) => void;
   scrollToNode: (id: string, nodeId: string, cause: string) => void;
   undo: () => void;
@@ -494,11 +486,6 @@ function inspect() {
       lastScrollCause: session.lastScrollCause(id),
       scope: session.scopeOf(id),
       scrollTop: ev?.scrollDOM.scrollTop ?? 0,
-      grainRanks: ev
-        ? Array.from(ev.contentDOM.querySelectorAll("[data-rank]")).map((n) =>
-            Number((n as HTMLElement).dataset.rank),
-          )
-        : [],
       range,
     };
   });
@@ -537,9 +524,6 @@ const api: HarnessApi = {
   },
   setPresentation(id, p) {
     session.view(id)?.setPresentation(p);
-  },
-  setGrain(id, rank) {
-    session.view(id)?.setGrain(rank);
   },
   navigateTo(id, nodeId) {
     session.view(id)?.navigateTo(nodeId);

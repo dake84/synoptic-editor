@@ -1,5 +1,5 @@
 /**
- * Host-facing CM6 re-exports (ADR 0015).
+ * Host-facing CM6 re-exports (SPEC § 12).
  * Desktop plugins import from `synoptic-editor/cm` — never `@codemirror/*`.
  */
 

@@ -1,5 +1,5 @@
 /**
- * Per-view presentation and grain chrome (SPEC.md § 3.3, A7, I9, § 8.6).
+ * Per-view presentation chrome (SPEC.md § 3.3, I9, § 8.6).
  * Decorations never rewrite the document. Hide reads ScopeRange (EX2).
  * Inline chrome: string pair-scan, rebuild on doc/scope only — never on scroll.
  */
@@ -374,9 +374,6 @@ export function headingStampField(
     provide: (field) => EditorView.decorations.from(field),
   });
 }
-
-/** @deprecated Use {@link headingStampField}. */
-export const grainField = headingStampField;
 
 function buildHeadingStamps(
   doc: string,

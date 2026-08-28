@@ -62,7 +62,6 @@ export interface ViewScope {
 export interface ViewRestoreState {
   scope: ViewScope;
   presentation: Presentation;
-  grain: number;
   /** Whether the scope node's ATX heading is reader-visible in wysiwyg (SNH1). */
   showNodeHeading: boolean;
   scrollAt: TrackedPositionId;
@@ -73,7 +72,6 @@ export interface ViewRestoreState {
 export interface CreateViewOptions {
   scope?: { nodeId: string; include?: IncludeMode };
   presentation?: Presentation;
-  grain?: number;
   /**
    * When false in wysiwyg, hide the scope node's ATX heading (host pin owns the
    * title). Default true. No effect in source (SNH1–SNH4).
@@ -81,7 +79,7 @@ export interface CreateViewOptions {
   showNodeHeading?: boolean;
   state?: ViewRestoreState;
   /**
-   * Named host plugins (ADR 0015). Slots: markdown, autocomplete, lint, keymap,
+   * Named host plugins (SPEC § 12). Slots: markdown, autocomplete, lint, keymap,
    * source, wysiwyg. Must not add `history()` or bind undo/redo to the view
    * state; must not use `scrollIntoView` as navigation (I1, I3, I4).
    */
@@ -136,7 +134,6 @@ export interface ViewHandle {
    * run before this call.
    */
   freezeScrollAnchor(): void;
-  setGrain(rank: number): void;
   /** Toggle scope-heading visibility in wysiwyg (SNH3). No remount. */
   setShowNodeHeading(show: boolean): void;
   navigateTo(nodeId: string): void;

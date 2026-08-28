@@ -96,7 +96,6 @@ interface ViewSlot {
   id: string;
   scope: ViewScope;
   presentation: Presentation;
-  grain: number;
   showNodeHeading: boolean;
   visibleNode: string | null;
   lastScrollCause: string | null;
@@ -445,7 +444,6 @@ export class Session implements PublicSession {
     const id = `view-${this.nextView++}`;
     let scope: ViewScope;
     let presentation: Presentation = opts.presentation ?? "source";
-    let grain = opts.grain ?? this.defaultGrain();
     let showNodeHeading = opts.showNodeHeading ?? true;
     let caretAt: TrackedPositionId;
     let scrollAt: TrackedPositionId;
@@ -459,7 +457,6 @@ export class Session implements PublicSession {
       scope = restored.scope;
       ancestry = ancestryOf(this.treeState, scope.nodeId);
       presentation = opts.state.presentation;
-      grain = opts.state.grain;
       showNodeHeading = opts.state.showNodeHeading ?? true;
       caretAt = opts.state.caretAt;
       scrollAt = opts.state.scrollAt;
@@ -481,7 +478,6 @@ export class Session implements PublicSession {
       id,
       scope,
       presentation,
-      grain,
       showNodeHeading,
       visibleNode: scope.nodeId || null,
       lastScrollCause: null,
@@ -535,10 +531,6 @@ export class Session implements PublicSession {
 
   scopeOf(id: string): ViewScope {
     return { ...this.requireSlot(id).scope };
-  }
-
-  private defaultGrain(): number {
-    return Math.max(0, ...this.schema.levels.map((l) => l.rank));
   }
 
   private restoreClosedScope(scope: ViewScope, ancestry: string[]): { scope: ViewScope; fallback: boolean } {
@@ -774,7 +766,6 @@ export class Session implements PublicSession {
         return {
           scope: { ...slot.scope },
           presentation: slot.presentation,
-          grain: slot.grain,
           showNodeHeading: slot.showNodeHeading,
           scrollAt: slot.scrollAt,
           caretAt: slot.caretAt,
@@ -813,12 +804,6 @@ export class Session implements PublicSession {
         const ev = session.sync.editorView(id);
         if (ev) session.captureScroll(slot, ev);
         slot.scrollFrozen = true;
-      },
-      setGrain(rank: number) {
-        const slot = session.requireSlot(id);
-        slot.grain = rank;
-        session.refreshChrome(slot);
-        session.emit({ type: "views" });
       },
       setShowNodeHeading(show: boolean) {
         const slot = session.requireSlot(id);

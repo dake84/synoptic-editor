@@ -127,10 +127,9 @@ describe("phase 3 frontmatter and locks", () => {
 
 describe("phase 3 chips pills search replace", () => {
   /** @covers T54, T56, W4, W5 */
-  it("widgets survive presentation grain and scope changes", () => {
+  it("widgets survive presentation and scope changes", () => {
     const s = session();
     const v = s.createView({ scope: { nodeId: "n0", include: "subtree" }, presentation: "wysiwyg" });
-    v.setGrain(0);
     v.setScope("n0", { include: "own" });
     v.setPresentation("source");
     v.setPresentation("wysiwyg");
