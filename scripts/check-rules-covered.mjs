@@ -74,6 +74,14 @@ if (!existsSync(SPEC_FILE)) {
 
 const specText = readFileSync(SPEC_FILE, "utf8");
 const ruleIds = extractRuleIds(specText);
+
+// Ids SPEC marks `@coverage-exempt` are still known but not required to have a
+// covering test: governance rules with no runtime behaviour (B1–B4), or retired
+// test-case numbers kept as a gap so they are never re-issued.
+const exemptIds = new Set();
+for (const m of specText.matchAll(/@coverage-exempt:\s*([A-Za-z0-9 ]+)/g)) {
+  for (const id of m[1].trim().split(/\s+/)) exemptIds.add(id);
+}
 const testCaseIds = extractTestCaseIds(specText);
 const knownIds = new Set([...ruleIds, ...testCaseIds]);
 
@@ -82,12 +90,19 @@ const coveredBy = extractCovers(testFiles);
 
 let hasError = false;
 
-const uncoveredRules = [...ruleIds].filter((id) => !coveredBy.has(id)).sort();
-const uncoveredTestCases = [...testCaseIds].filter((id) => !coveredBy.has(id)).sort();
+const uncoveredRules = [...ruleIds]
+  .filter((id) => !coveredBy.has(id) && !exemptIds.has(id))
+  .sort();
+const uncoveredTestCases = [...testCaseIds]
+  .filter((id) => !coveredBy.has(id) && !exemptIds.has(id))
+  .sort();
 const unknownCovers = [...coveredBy.keys()].filter((id) => !knownIds.has(id)).sort();
 
 console.log(`check-rules-covered: ${ruleIds.size} Regel-Ids, ${testCaseIds.size} Testfall-Ids in ${SPEC_FILE} gefunden.`);
 console.log(`check-rules-covered: ${testFiles.length} Testdateien durchsucht, ${coveredBy.size} referenzierte Ids in @covers.`);
+if (exemptIds.size > 0) {
+  console.log(`check-rules-covered: ${exemptIds.size} @coverage-exempt ausgenommen (${[...exemptIds].sort().join(", ")}).`);
+}
 
 if (uncoveredRules.length > 0) {
   hasError = true;

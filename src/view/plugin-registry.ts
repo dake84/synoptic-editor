@@ -1,5 +1,5 @@
 /**
- * Named host plugin slots (ADR 0015 / SPEC § 12).
+ * Named host plugin slots (SPEC § 12).
  * Synoptic does not implement autocomplete/lint — it mounts host contributions.
  */
 

@@ -5,6 +5,8 @@
  * line decorations (stamps). Documents what CM6 actually does today.
  *
  * Lore sources: `frontmatter-hide.ts`, `AGENTS.md` (heading chrome), SPEC § 11.1.
+ *
+ * @covers FM9, HS1, I6
  */
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -169,7 +171,7 @@ describe("block replace vs next-heading stamps (empirical)", () => {
     view.destroy();
   });
 
-  it("inline title replace (Marli chrome): Beta keeps probe-stamp-1", () => {
+  it("inline title replace (host title chrome): Beta keeps probe-stamp-1", () => {
     const { parent, view } = mount(DOC, inlineTitleReplaceField());
     expect(observeBeta(parent).hasProbeStamp1).toBe(true);
     view.destroy();

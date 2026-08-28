@@ -72,7 +72,7 @@ Antwort auf „was bleibt übrig und was müssen wir verbiegen":
 | **Timeline über Text- und Nicht-Text-Aktionen** | **gebaut** |
 | **Mehr-View-Synchronisation** | **gebaut** — bietet keine Engine nativ |
 | **Node-Projektion aus Überschriften/Frontmatter** | **gebaut** |
-| **Scope-/Grain-Rendering je View** | **gebaut** |
+| **Scope-Rendering je View** | **gebaut** |
 | **visibleNode aus Scrollposition** | **gebaut** |
 | Presentation und Guards je View | **nativ, direkt konfiguriert** — jede View hat ihren eigenen State (§ 11), kein Bend-Mechanismus nötig |
 
@@ -99,7 +99,7 @@ lassen. Dann ist § 1.1 selbst zu prüfen, nicht die Engine.
 | **Tree** | Geordnete Projektion aller Nodes. Kein zweiter Datenbestand. |
 | **ownRange(n)** | Überschrift + Frontmatter + Rumpf **bis zur ersten Kind-Überschrift**. |
 | **subtreeRange(n)** | `ownRange(n)` einschließlich aller Nachkommen. |
-| **View** | Eine Darstellung. Hat Scope, Presentation, Grain, Scroll, Find-Zustand. Jede View hält einen eigenen `EditorState` plus `EditorView` und denselben vollen `Text` wie die Session — keinen kürzeren Puffer. |
+| **View** | Eine Darstellung. Hat Scope, Presentation, Scroll, Find-Zustand. Jede View hält einen eigenen `EditorState` plus `EditorView` und denselben vollen `Text` wie die Session — keinen kürzeren Puffer. |
 | **Scope** | Node-Id **plus Include-Modus**: `own` oder `subtree`. |
 | **renderRange(v)** | **Initiale** Range von View `v`: `ownRange(scope)` bei `include: 'own'`, sonst `subtreeRange(scope)`. **`to` ist exklusiv:** die letzte editierbare Position ist `to - 1` (bzw. `to`, wenn `to` das Dokumentende ist). Ein Insert *bei* `to` ist das erste Zeichen der nächsten Node. Der **lebende** Ausschnitt ist nicht `renderRange`, sondern `ScopeRange` (§ 3.6). |
 | **ScopeRange** | Lebender Ausschnitt einer offenen View: `{ from, to, lost }`, durch jede Änderung abgebildet (§ 3.6). Eine Stelle (I6). |
@@ -113,9 +113,7 @@ Die Unterscheidung `ownRange` / `subtreeRange` ist tragend — sie entscheidet D
 
 **Include-Modus:** `subtree` zeigt den Knoten mit allen Nachkommen (Voreinstellung),
 `own` nur seinen eigenen Inhalt — Überschrift, Frontmatter und Rumpf bis zur ersten
-Kind-Überschrift. Der Modus ist **unabhängig vom Grain** (A7): Grain bestimmt die
-Darstellung, `include` den Umfang. Beides zu koppeln, war im Altbestand die Quelle der
-Grain-Wechsel-Rennen (T17).
+Kind-Überschrift. `include` ist der einzige Umfangsregler einer View.
 
 ### 3.2 Eigentum
 
@@ -123,7 +121,7 @@ Kein Belang existiert auf beiden Ebenen. Kein Wert wird zweimal geführt.
 
 | Session | View |
 | ------- | ---- |
-| SessionEditorState · Tree · Baseline · View-Register · Schema · Fokus · Timeline-Anbindung | Scope · Presentation · Grain · Scrollposition · visibleNode · Find-Zustand · eigener EditorState |
+| SessionEditorState · Tree · Baseline · View-Register · Schema · Fokus · Timeline-Anbindung | Scope · Presentation · Scrollposition · visibleNode · Find-Zustand · eigener EditorState |
 
 Abgeleitet, nicht gespeichert:
 
@@ -153,7 +151,7 @@ Komponente kennt keinen Pin. In `source` ist die Option wirkungslos.
 | - | ----- |
 | **SNH1** | `showNodeHeading: true` (Default): Scope-Überschrift wie jede andere sichtbare Überschrift (L4, F6). |
 | **SNH2** | `showNodeHeading: false` in `wysiwyg`: die Heading-Range des Scope-Knotens (`TreeNode.heading`, inkl. folgendem Newline) ist ausgeblendet und nicht per Caret erreichbar. Kind-Überschriften im Ausschnitt bleiben sichtbar und editierbar. |
-| **SNH3** | `setScope` / `setShowNodeHeading` aktualisieren die Ausblendung ohne Remount und ohne Timeline-Eintrag (wie `setGrain`). |
+| **SNH3** | `setScope` / `setShowNodeHeading` aktualisieren die Ausblendung ohne Remount und ohne Timeline-Eintrag. |
 | **SNH4** | Die ausgeblendete Scope-Überschrift nimmt an der Wysiwyg-Suche nicht teil (F4); in `source` bleibt sie suchbar (F5). |
 | **V11** | Der Scroll-Anker zwischen Presentations ist der Dokument-Offset der Leselinie im `scrollPort` (`lineBlockAtHeight(scrollTop).from`), nie ein Pixelwert (V3) und nie ein Absatzindex. `view.freezeScrollAnchor()` schreibt diesen Offset nach `scrollAt` und friert ihn: Measure überschreibt `scrollAt` nicht, `setPlugins` rekonfiguriert das Chrome nicht. `setPresentation` stellt den gefrorenen Offset mit `scrollToPos(..., "presentation")` wieder her (`y: "start"`) und taut auf. Ohne Freeze misst `setPresentation` die Leselinie unmittelbar vor dem Chrome-Wechsel. Der Caret bleibt die Selektion und zieht den Viewport nicht (V4, L7 ohne Scroll). |
 
@@ -205,7 +203,7 @@ Session (I10), sondern wird als Wert herausgegeben.
 ```
 view.getState() → {
   scope: { nodeId, include },
-  presentation, grain, showNodeHeading,
+  presentation, showNodeHeading,
   scrollAt: TrackedPositionId,   // § 3.4
   caretAt:  TrackedPositionId,
   findState,
@@ -275,7 +273,7 @@ Policy = {
 ```
 
 `rank` aufsteigend von der äußersten Ebene. Der Kern kennt ausschließlich Ränge; `id` ist ein
-undurchsichtiger Bezeichner für den Host. `grain` einer View ist eine `rank`-Angabe.
+undurchsichtiger Bezeichner für den Host.
 `pillFields` wählt, welche Frontmatter-Schlüssel zusätzlich als Pills unter der Überschrift
 erscheinen (P5). Nicht gelistete Schlüssel bleiben nur im Formular (FM7).
 `inlineRefStyle` wählt **eine** Chip-Syntax je Session (W6). Die Styles mischen sich nicht.
@@ -349,7 +347,7 @@ nicht gäbe:
 | Textänderung | Session | beide | äußere sieht innere | keine Sichtbarkeit |
 | Strukturänderung | Session | beide | äußere sieht neue/entfallene Nodes | nur bei Rang-/Reihenfolgeänderung oberhalb (§ 7) |
 | Timeline, Tree, Dirty | Session | geteilt | geteilt | geteilt |
-| Scope, Presentation, Grain | View | unabhängig | unabhängig | unabhängig |
+| Scope, Presentation | View | unabhängig | unabhängig | unabhängig |
 | Scrollposition | View | unabhängig, **koppelbar** (opt-in) | unabhängig | unabhängig |
 | visibleNode, Find-Zustand | View | unabhängig | unabhängig | unabhängig |
 | Selektion | View | unabhängig — nicht weitergeleitet (§ 11.2) | unabhängig | unabhängig |
@@ -380,9 +378,9 @@ Jede Strukturänderung ist eine Textänderung (I2) und liegt auf der Timeline (I
 
 | # | Regel |
 | - | ----- |
-| **R1** | Eine neue Node innerhalb der Range einer View erscheint dort ohne Zutun — auch in Views mit gröberem Grain, die sie enthalten. |
+| **R1** | Eine neue Node innerhalb der Range einer View erscheint dort ohne Zutun — auch in Views mit weiterem `include`, die sie enthalten. |
 | **R2** | Wird die Scope-Node einer **geschlossenen** View entfernt, fällt ihr Scope beim Wiederherstellen auf den nächsten überlebenden Vorfahren (V10). Eine **offene** View fällt nicht um: Selbst-Leeren bleibt gemountet (EX3), fremdes Leeren meldet `scopeLost` (EX4). |
-| **R3** | Rangänderung einer Scope-Node lässt den Scope gültig (Identität bleibt); Grain-Chrome und Range werden neu bestimmt. |
+| **R3** | Rangänderung einer Scope-Node lässt den Scope gültig (Identität bleibt); Chrome und Range werden neu bestimmt. |
 | **R4** | Verlässt eine Node die Range von View A und tritt in die von View B ein, rendern beide neu. Keine Neumontage. |
 | **R5** | Strukturbearbeitung in `wysiwyg` folgt `policy.structureEditingInWysiwyg` (§ 4). Über `source` und API immer zulässig. |
 | **R6** | Eine Strukturänderung erzeugt genau einen Timeline-Eintrag, unabhängig von der Zahl kaskadierender Nodes. |
@@ -498,7 +496,7 @@ im Label (`<` im Textknoten). Roh-HTML, das kein Chip ist, bleibt Quelltext (§ 
 | **W1** | Die sichtbare Beschriftung ist Teil der Textprojektion: auffindbar (§ 10) und hervorhebbar. Mit Textknoten: das geschriebene Label *ist* die Anzeige, **als Teilstring selektierbar**, CSS-Klasse `syn-chip` (kein Default-Look — Hosts stylen). Ohne Textknoten (W7): synthetische Beschriftung; findbar, nicht teilstring-selektierbar (wie Pills, F7). Die Komponente resolvt keine Katalogdaten — Hover liegt beim Host. |
 | **W2** | Nicht sichtbare Anteile (übrige Attribute, Marker, Tags) nehmen an der Suche nicht teil. Ausnahme W7: der id-Wert bzw. der type-Token *ist* das Label, nicht verstecktes Chrome. |
 | **W3** | Löschen erfasst die gesamte Widget-Einheit oder nichts (L1). |
-| **W4** | Widgets überstehen Presentation-, Scope- und Grain-Wechsel funktionsfähig. |
+| **W4** | Widgets überstehen Presentation- und Scope-Wechsel funktionsfähig. |
 | **W5** | Fokus in einem Widget entzieht der Text-View den Cursor nicht, solange der Bearbeiter es nicht anspricht. |
 | **W6** | Genau ein `inlineRefStyle` je Session. Hide, Atom, Find, Replace und L1 laufen über **einen** Scanner auf diese Einheit (I6). Die andere Syntax ist in derselben Session gewöhnlicher Quelltext. |
 | **W7** | html-ref Selbstschluss und leeres Element sind Chips ohne Textknoten. Widget über die ganze Einheit; Label = `id` \| `type` \| `ref`. |
@@ -569,8 +567,7 @@ Hosts stylen; die Komponente hat keinen Default-Look.
 | `rel` | `rank − scope.rank` |
 
 Klassen: `syn-depth-N`, `syn-rank-N`, `syn-rel-N` (negativ `syn-rel--1`). Attribute
-`data-heading-depth`, `data-rank`, `data-rel`. `setGrain` bleibt View-Zustand; es gibt
-keine zweite `syn-grain`-Klasse.
+`data-heading-depth`, `data-rank`, `data-rel`.
 
 `syn-section-open` liegt auf der **ersten Prosa-Zeile** nach der Überschrift (Leerzeilen und
 Frontmatter übersprungen). Dieselbe `data-rel`/`data-rank`/`data-heading-depth` wie die
@@ -605,7 +602,7 @@ Generische Quelltext-Edits. Kein Schema, keine Ränge, keine Knotentypen.
 | **U5** | Aufdecken nach Undo/Redo, in dieser Reihenfolge: (1) zeigt eine View die Ziel-Node, dort aufdecken; (2) zeigen mehrere, die fokussierte; (3) zeigt keine, Scope der fokussierten View setzen, dann aufdecken. |
 | **U6** | Undo/Redo dürfen gesperrte Bereiche verändern — Wiederherstellen ist keine Bearbeitung. |
 | **U7** | `replaceDocument` leert die Timeline, setzt die Baseline neu und macht alle TrackedPositions ungültig (TP8). Einziger Fall legitimen Historieverlusts. |
-| **U8** | **Timeline und Undo-Reichweite liegen in der Session, nie in einer View.** Öffnen und Schließen von Views, Scope-, Presentation- und Grain-Wechsel kosten keine Historie und brauchen keinen Zustands-Cache. |
+| **U8** | **Timeline und Undo-Reichweite liegen in der Session, nie in einer View.** Öffnen und Schließen von Views, Scope- und Presentation-Wechsel kosten keine Historie und brauchen keinen Zustands-Cache. |
 
 ### 9.1 Fremde Entitäten auf derselben Timeline
 
@@ -907,12 +904,12 @@ steht.
 | `view.mount(el)` · `view.destroy()` | Lebenszyklus |
 | `view.getState()` | lesend — Wiederherstellungszustand mit TrackedPositions (§ 3.5) |
 | `view.setScope(nodeId, { include: 'own' \| 'subtree' })` | Kommando — Umfang (§ 3.1) |
-| `view.setPresentation(p)` · `setGrain(rank)` · `setShowNodeHeading(show)` | Kommando — `setPresentation` stellt `scrollAt` wieder her (V11) |
+| `view.setPresentation(p)` · `setShowNodeHeading(show)` | Kommando — `setPresentation` stellt `scrollAt` wieder her (V11) |
 | `view.freezeScrollAnchor()` | Kommando — Leselinie nach `scrollAt` frieren, bevor der Host das Layout kippt (V11) |
 | `view.navigateTo(nodeId)` | Kommando — löst Scope vs. Viewport auf (§ 13.2) |
 | `view.scrollToNode(nodeId, cause)` | Kommando — `cause` ist Pflicht (I4) |
 | `view.reveal(from, to, cause)` | Kommando — Range in den Viewport (Find-Offsets); `cause` Pflicht (I4) |
-| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8; ADR 0015). Solange `scrollAt` gefroren ist, nur Bags schreiben, kein Chrome (V11) |
+| `view.setPlugins(plugins)` | Kommando — benannte Host-Plugins ohne Remount (I3/U8, § 12). Solange `scrollAt` gefroren ist, nur Bags schreiben, kein Chrome (V11) |
 | `view.setExtensions(extensions, presentationExtensions?)` | **deprecated** — Prefer `setPlugins`. Solange `scrollAt` gefroren ist, nur Bags, kein Chrome (V11). |
 | `view.coords(from, to)` | lesend — Box relativ zum Scrollport (§ 12.1); `null` wenn ungemountet oder Position ungültig |
 | `view.scrollPort` | lesend — Scroll-Owner-Element (I4) oder `null` wenn ungemountet |
@@ -994,7 +991,7 @@ replaceAll → { prose: number, metadata: number, rejected?: number }
 ```
 
 `createView` nimmt optional `showNodeHeading` (Default `true`, § 3.3 SNH1–SNH4) und
-`plugins` (ADR 0015): Beiträge mit `id` und Slot `markdown` | `autocomplete` | `lint` |
+`plugins`: Beiträge mit `id` und Slot `markdown` | `autocomplete` | `lint` |
 `keymap` | `source` | `wysiwyg`. Slots hängen **hinter** dem Session-Chrome und werden mit
 der Präsentation neu konfiguriert. Sie dürfen kein `history()` ergänzen, Undo/Redo
 nicht an den View-State binden und `scrollIntoView` nicht als Navigation nutzen
@@ -1087,6 +1084,14 @@ Verhaltenstests gegen den einen Sync-Kern (§ 11) — keine Variantenunterscheid
 Unit-Tests decken zusätzlich die Weiterleitungsmechanik selbst ab (§ 11.2). Kein Testfall
 darf auf Zeit warten (I5).
 
+**T5, T14, T16, T17, T96** sind mit dem `grain`-Regler entfallen — `include` ist der einzige
+Umfangsregler (§ 3.1). Die Nummern bleiben als Lücke; sie werden nicht neu vergeben und sind
+von `check:rules-covered` ausgenommen.
+
+<!-- @coverage-exempt: T5 T14 T16 T17 T96 -->
+
+Die Phasen-Bereiche in § 16 (`T1–T37`, `T83–T116`) schließen diese Nummern nominell ein.
+
 ### Scrollposition
 
 | # | Fall |
@@ -1095,7 +1100,6 @@ darf auf Zeit warten (I5).
 | T2 | Scope-Wechsel scrollt nur die Ziel-View. |
 | T3 | Presentation-Wechsel hält dieselbe Textstelle im Sichtfenster; Versatz festgeschrieben. |
 | T4 | Nach Undo außerhalb des Sichtfensters ist die Zielstelle sichtbar (U5). |
-| T5 | Grain-Wechsel ändert die Scrollposition nicht. |
 | T6 | Öffnen/Schließen einer View ändert die Position bestehender Views nicht. |
 | T7 | Jede Positionsänderung ist einer benannten Ursache zuordenbar; kein Pfad setzt Scroll ohne Ursache (I4). |
 
@@ -1111,21 +1115,17 @@ darf auf Zeit warten (I5).
 | **T12** | Auf Korpus L wird für **jede** Node eine Stichprobe von Positionen quer durch ihren Rumpf aufgelöst; jede muss **diese** Node ergeben, nie eine Nachbar-Node. | Die Positions-→-Node-Auflösung ist typischerweise eine Suche über zwischengespeicherte Überschriften-Offsets. Bei großen Dokumenten driften solche Caches, und Bereichsgrenzen sind off-by-one-anfällig. Der Fehler zeigt sich nicht bei drei Kapiteln, sondern bei dreihundert — deshalb ausdrücklich auf L. |
 | **T13** | Während eines Dispatch/Update-Zyklus wird keine Layout-Messung ausgeführt (instrumentiert: `coordsAtPos`, `getBoundingClientRect` und Verwandte). | `visibleNode` braucht Geometrie („welche Node steht an der Leselinie?"). Naiv liest man sie beim Dokument-Update. CM6 verbietet Messungen während eines laufenden Updates; zusätzlich erzwingt jede synchrone Messung ein Reflow und macht Tippen bei L spürbar langsamer. Die Messung gehört in den Mess-/Scroll-Zyklus, nicht in die Transaktion. |
 
-### Scope und Grain
+### Scope
 
 | # | Fall |
 | - | ---- |
-| T14 | Grain-Wechsel ändert nur Darstellung: Document, Timeline-Tiefe und Scroll identisch. |
 | T15 | Scope-Wechsel über eine Teilbaumgrenze: keine Neumontage, kein Historieverlust. |
-| T16 | Die gerenderte Struktur entspricht dem Grain — geprüft an Struktur, nicht an Aussehen. |
-| T17 | Grain-Wechsel während eines laufenden Scope-Wechsels führt zu definiertem Endzustand. |
 | T57 | `navigateTo` auf eine Node **innerhalb** des Scope bewegt den Viewport und lässt den Scope unverändert (§ 13.2). |
 | T58 | `navigateTo` auf Vorfahr, Geschwister oder fremden Zweig setzt den Scope. |
 | T92 | Node X mit `include: 'own'` rendert Überschrift, Frontmatter und eigenen Rumpf — **ohne** Kindkörper; mit `include: 'subtree'` mit Kindern. |
 | T93 | Zwei Views auf **derselben** Node, eine `own`, eine `subtree` → Relation `containing`, nicht `identical` (§ 6.1). |
 | T94 | View auf X mit `own` und View auf einem Kind von X → Relation `disjoint`. |
 | T95 | Umschalten `own` ⇄ `subtree` ändert weder Dokument noch Timeline-Tiefe noch Historie; es ist kein Dokumentwechsel. |
-| T96 | Grain-Wechsel ändert den Include-Modus **nicht** und umgekehrt — die beiden sind entkoppelt (A7, § 3.1). |
 | T97 | `include: 'own'` und eine Änderung in einem Kind: die View zeigt sie nicht, die Timeline erfasst sie trotzdem, Dirty trifft das Kind (D1). |
 
 ### Mehrere Views, Bereichsrelationen
@@ -1268,7 +1268,7 @@ darf auf Zeit warten (I5).
 | T51 | Feldänderung schreibt eine Transaktion; die parallele `source`-View zeigt den neuen Text. |
 | T52 | Feldänderung erscheint als Timeline-Eintrag und ist rücknehmbar (FM4). |
 | T53 | Feldänderung setzt Dirty genau der betroffenen Node (D1). |
-| T54 | Widget übersteht Presentation-, Scope- und Grain-Wechsel funktionsfähig (W4). |
+| T54 | Widget übersteht Presentation- und Scope-Wechsel funktionsfähig (W4). |
 | T55 | Feld leeren erzeugt gültiges Markdown. |
 | T56 | Fokus im Widget stiehlt der Text-View den Cursor nicht (W5). |
 | **T121** | `html-ref`: abweichender End-Tag und `<` im Textknoten sind kein Chip (W6). |
@@ -1374,7 +1374,7 @@ Torstelle vor dem ersten Anwendungscode.
 
 | Phase | Inhalt | Ergebnis |
 | ----- | ------ | -------- |
-| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`)/Grain, Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
+| **1** | Session, Tree-Projektion, Timeline (verschränkt), TrackedPositions + View-Zustand, zwei Text-Views, Scope (inkl. `include`), Navigationsauflösung, Scroll-Owner, visibleNode, Dirty, minimale Guards — Sync-Kern nach § 11.2 (`SessionEditorState`, Dokument-Weiterleitung, keine Selektions-Weiterleitung, EX1–EX5) | T1–T37, T57–T63, T83–T116 grün |
 | **2** | Benchmark (§ 15) **gegen vorab festgelegte absolute Budgets** (§ 16.2) | Budgets gehalten → weiter; verfehlt → Kosten benennen und innerhalb des Modells lösen (§ 2.3) |
 | **3** | Frontmatter-Formular, Inline-Widgets, Pills, Suche und Ersetzen vollständig, gesperrte Bereiche vollständig, Inline-Chrome (§ 8.6) | T38–T56, T64–T82, T117, T119–T124, T129–T132 grün |
 | **4** | API-Härtung, Beispiel-Host, Dokumentation | Veröffentlichungsfähig |
@@ -1403,6 +1403,11 @@ Ein Messwert allein sagt nichts — „38 ms" ist weder gut noch schlecht ohne M
 | **B2** | Nachträgliches Anheben eines Budgets, weil der Messwert es verfehlt, ist unzulässig. Verfehlt heißt verfehlt. |
 | **B3** | Verfehlt der Sync-Kern ein Budget bei Korpus L, ist das ein benannter Befund — welche Messgröße, bei welchem n — der innerhalb des Modells gelöst wird (Optimierung der StateField-Berechnung, § 11.2). Kein Rückfall auf einen geteilten State: der ist nicht mehr Teil des Modells (§ 2.3 Falsifikation betrifft die Engine-Wahl, nicht den Sync-Kern). |
 | **B4** | Ein verfehltes Budget ist damit ein Arbeitsauftrag, kein Auslöser für eine zweite Architektur. |
+
+B1–B4 sind Governance-Regeln über den Umgang mit Messwerten, nicht über Laufzeitverhalten
+der Komponente — sie tragen kein `@covers` und sind von `check:rules-covered` ausgenommen.
+
+<!-- @coverage-exempt: B1 B2 B3 B4 -->
 
 Das Budget bleibt der Beleg, dass die Entscheidung hält — nicht mehr im Vergleich zu einer
 zweiten Konstruktion, sondern gegen sich selbst.

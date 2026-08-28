@@ -79,14 +79,13 @@ describe("phase 1 session", () => {
     expect(rels.find((r) => r.a === parent.id && r.b === other.id)?.kind).toBe("disjoint");
   });
 
-  /** @covers T95, T96, U8 */
-  it("switching include or grain does not change the document or timeline", () => {
+  /** @covers T95, U8 */
+  it("switching include does not change the document or timeline", () => {
     const s = session();
-    const v = s.createView({ scope: { nodeId: "n0", include: "subtree" }, grain: 3 });
+    const v = s.createView({ scope: { nodeId: "n0", include: "subtree" } });
     const depth = s.timelineDepth;
     const doc = s.document;
     v.setScope("n0", { include: "own" });
-    v.setGrain(0);
     v.setPresentation("wysiwyg");
     expect(s.document).toBe(doc);
     expect(s.timelineDepth).toBe(depth);
