@@ -113,7 +113,9 @@ export class FrontmatterFormWidget extends WidgetType {
 }
 
 function cssEscape(value: string): string {
-  return typeof CSS !== "undefined" && CSS.escape ? CSS.escape(value) : value.replace(/"/g, '\\"');
+  return typeof CSS !== "undefined" && CSS.escape
+    ? CSS.escape(value)
+    : value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function buildFrontmatterDecos(
