@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Host extra locks: edit filter (L5) and optional atomic ranges (L6).
  */

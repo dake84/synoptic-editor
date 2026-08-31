@@ -6,18 +6,16 @@
 import type { Extension } from "@codemirror/state";
 import type { Presentation } from "./presentation.js";
 
-export type PluginSlot =
-  | "markdown"
-  | "autocomplete"
-  | "lint"
-  | "keymap"
-  | "source"
-  | "wysiwyg";
+/** Host plugin slot names (SPEC § 12). */
+export type PluginSlot = "markdown" | "autocomplete" | "lint" | "keymap" | "source" | "wysiwyg";
 
+/** Named CodeMirror contribution mounted by the session. */
 export interface PluginContribution {
   /** Stable id (feature-prefixed); later registration with same id replaces. */
   id: string;
+  /** Slot that decides which views receive the extension. */
   slot: PluginSlot;
+  /** CodeMirror extension. */
   extension: Extension;
 }
 
@@ -48,7 +46,7 @@ export function assertSafeHostPlugin(plugin: PluginContribution): void {
   for (const piece of flat) {
     const label =
       typeof piece === "object" && piece !== null && "constructor" in piece
-        ? (piece as { constructor?: { name?: string } }).constructor?.name ?? ""
+        ? ((piece as { constructor?: { name?: string } }).constructor?.name ?? "")
         : String(piece);
     if (/^history$/i.test(label) || label.includes("historyKeymap")) {
       throw new Error(

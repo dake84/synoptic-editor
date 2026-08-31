@@ -16,11 +16,18 @@ import {
 } from "../core/inline-markers.js";
 import { projectTree } from "../core/tree.js";
 import type { StructureSchema } from "../core/types.js";
-import { headingMarkers, maskBackslashRanges, maskPairs, snapOutOfHeadingMarkers } from "./guards/wysiwyg.js";
+import {
+  headingMarkers,
+  maskBackslashRanges,
+  maskPairs,
+  snapOutOfHeadingMarkers,
+} from "./guards/wysiwyg.js";
 import { coveredByHostBlockReplace, hostBlockReplaceRanges } from "./host-block-replace.js";
 import { type ScopeRange } from "./scope.js";
 
+/** View presentation: raw markdown vs rendered chrome. */
 export type Presentation = "source" | "wysiwyg";
+/** How much of the scoped node a view shows. */
 export type IncludeMode = "own" | "subtree";
 
 const hideRange = Decoration.replace({
@@ -92,7 +99,9 @@ function lineSlices(doc: string, from: number, to: number): { from: number; to: 
 
 function scopedInlineMarks(doc: string, from: number, to: number): InlineMarkSpan[] {
   const comments = findHtmlComments(doc, from, to);
-  return findInlineMarks(doc, from, to).filter((s) => !overlapsAny({ from: s.openFrom, to: s.closeTo }, comments));
+  return findInlineMarks(doc, from, to).filter(
+    (s) => !overlapsAny({ from: s.openFrom, to: s.closeTo }, comments),
+  );
 }
 
 function buildWysiwygDecorations(
@@ -134,8 +143,10 @@ function buildWysiwygDecorations(
   }
   for (const span of scopedInlineMarks(doc, from, to)) {
     if (hideFrom >= 0 && span.openFrom >= hideFrom && span.closeTo <= hideTo) continue;
-    if (span.openTo > span.openFrom) inlines.push({ from: span.openFrom, to: span.openTo, deco: hideMarker });
-    if (span.closeTo > span.closeFrom) inlines.push({ from: span.closeFrom, to: span.closeTo, deco: hideMarker });
+    if (span.openTo > span.openFrom)
+      inlines.push({ from: span.openFrom, to: span.openTo, deco: hideMarker });
+    if (span.closeTo > span.closeFrom)
+      inlines.push({ from: span.closeFrom, to: span.closeTo, deco: hideMarker });
     if (span.openTo < span.closeFrom) {
       inlines.push({ from: span.openTo, to: span.closeFrom, deco: INLINE_MARK[span.kind] });
     }
@@ -197,8 +208,7 @@ function buildWysiwygAtoms(
         !(hideFrom >= 0 && mk.from >= hideFrom && mk.to <= hideTo),
     ),
     ...maskPairs(doc, r.from, r.to).filter(
-      (p) =>
-        !overlapsAny(p, comments) && !(hideFrom >= 0 && p.from >= hideFrom && p.to <= hideTo),
+      (p) => !overlapsAny(p, comments) && !(hideFrom >= 0 && p.from >= hideFrom && p.to <= hideTo),
     ),
     ...comments.filter((c) => c.to > c.from),
     ...inlineAtoms.filter(
@@ -273,7 +283,8 @@ export function hideOutsideField(rangeField: StateField<ScopeRange>): StateField
     update(_value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
-      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return _value;
+      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost)
+        return _value;
       const doc = tr.state.doc.toString();
       return r.lost ? hideAll(doc) : hideOutside(doc, r.from, r.to);
     },
@@ -335,12 +346,17 @@ export function wysiwygAtomField(
   return StateField.define<DecorationSet>({
     create(state) {
       const doc = state.doc.toString();
-      return buildWysiwygAtoms(doc, state.field(rangeField), resolveScopeHeadingHide(doc, hideOpts));
+      return buildWysiwygAtoms(
+        doc,
+        state.field(rangeField),
+        resolveScopeHeadingHide(doc, hideOpts),
+      );
     },
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
-      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
+      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost)
+        return value;
       const doc = tr.state.doc.toString();
       return buildWysiwygAtoms(doc, r, resolveScopeHeadingHide(doc, hideOpts));
     },
@@ -367,7 +383,8 @@ export function headingStampField(
     update(value, tr) {
       const r = tr.state.field(rangeField);
       const prev = tr.startState.field(rangeField);
-      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost) return value;
+      if (!tr.docChanged && r.from === prev.from && r.to === prev.to && r.lost === prev.lost)
+        return value;
       const doc = tr.state.doc.toString();
       return buildHeadingStamps(doc, r, schema, scopeRank, resolveScopeHeadingHide(doc, hideOpts));
     },

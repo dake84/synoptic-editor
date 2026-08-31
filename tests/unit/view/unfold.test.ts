@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Unfold overlapping folds before reveal (SPEC.md F11).
  */

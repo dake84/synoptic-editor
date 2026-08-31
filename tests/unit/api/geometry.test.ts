@@ -1,6 +1,4 @@
-/**
- * @vitest-environment happy-dom
- */
+// @vitest-environment happy-dom
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSession } from "../../../src/index.js";

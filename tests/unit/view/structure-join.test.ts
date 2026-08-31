@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Prose must not join schema headings or bound YAML (SPEC.md L8).
  */
@@ -8,11 +9,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  extraLockedGuards,
-  extraLockedRanges,
-  structureJoinFilter,
-} from "../../../src/index.js";
+import { extraLockedGuards, extraLockedRanges, structureJoinFilter } from "../../../src/index.js";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
 
 function mount(doc: string) {

@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Skip-scroll when the target already overlaps the port (SPEC.md G9).
  */

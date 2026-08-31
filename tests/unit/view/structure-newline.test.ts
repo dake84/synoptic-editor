@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Enter must not punch blank lines through FM or headings (SPEC.md L4, FM2).
  */

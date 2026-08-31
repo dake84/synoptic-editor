@@ -82,11 +82,11 @@ it("Rumpf eines Kindes ändern lässt den Elternknoten sauber", () => { … })
 `scripts/check-rules-covered.mjs` liest alle Ids aus `SPEC.md`, alle `@covers` aus `tests/`
 und meldet:
 
-| Befund | Bedeutung |
-| ------ | --------- |
-| Regel ohne Test | **Fehler** — Anforderung nicht belegt |
+| Befund                      | Bedeutung                                    |
+| --------------------------- | -------------------------------------------- |
+| Regel ohne Test             | **Fehler** — Anforderung nicht belegt        |
 | `@covers` auf unbekannte Id | **Fehler** — Tippfehler oder gelöschte Regel |
-| Testfall-Id `T*` ohne Test | **Fehler** |
+| Testfall-Id `T*` ohne Test  | **Fehler**                                   |
 
 Damit ist „ist die Spec umgesetzt" eine Zahl, keine Einschätzung. Und wenn eine Regel
 gestrichen wird, schlägt der Test an, der sie noch behauptet.
@@ -97,29 +97,47 @@ gestrichen wird, schlägt der Test an, der sie noch behauptet.
 
 Jede erzwingt eine Invariante, die sonst erodiert.
 
-| Skript | Erzwingt | Vorgehen |
-| ------ | -------- | -------- |
-| `check-core-purity` | **I8** | `src/core/**` importiert nichts aus `@codemirror/view`, keinem UI-Framework, keinem DOM-Global. Verstoß = Fehler. |
-| `check-no-waiting` | **I5** | Kein `setTimeout`, `waitForTimeout`, `sleep`, Poll-Schleife mit Intervall/Backoff in `tests/**` — das rät eine Dauer. **Erlaubt** ist ein einzelnes, unbedingtes Warten auf ein wohldefiniertes Ereignis (ein `requestAnimationFrame`, ein Microtask-Flush) — das rät nichts. Für `visibleNode`: Positions→Node-Auflösung als reine Funktion mit injizierter Geometrie unit-testen; nur die Integration gegen echtes Layout braucht den einen Frame-Await. |
-| `check-rules-covered` | Spec-Deckung | § 2 |
-| `check-export-surface` | **SPEC § 12** | `src/index.ts` exportiert genau die Namen aus SPEC § 12 — nicht mehr. Neue Exporte erfordern eine Spec-Änderung. Beispiel-Hosts dürfen nur das Paket-Root importieren. |
+| Skript                 | Erzwingt      | Vorgehen                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `check-core-purity`    | **I8**        | `src/core/**` importiert nichts aus `@codemirror/view`, keinem UI-Framework, keinem DOM-Global. Verstoß = Fehler.                                                                                                                                                                                                                                                                                                                                          |
+| `check-no-waiting`     | **I5**        | Kein `setTimeout`, `waitForTimeout`, `sleep`, Poll-Schleife mit Intervall/Backoff in `tests/**` — das rät eine Dauer. **Erlaubt** ist ein einzelnes, unbedingtes Warten auf ein wohldefiniertes Ereignis (ein `requestAnimationFrame`, ein Microtask-Flush) — das rät nichts. Für `visibleNode`: Positions→Node-Auflösung als reine Funktion mit injizierter Geometrie unit-testen; nur die Integration gegen echtes Layout braucht den einen Frame-Await. |
+| `check-rules-covered`  | Spec-Deckung  | § 2                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `check-export-surface` | **SPEC § 12** | `src/index.ts` exportiert genau die Namen aus SPEC § 12 — nicht mehr. Neue Exporte erfordern eine Spec-Änderung. Beispiel-Hosts dürfen nur das Paket-Root importieren.                                                                                                                                                                                                                                                                                     |
 
 `check-export-surface` ist für ein OSS-Paket der unterschätzte: versehentlich exportierte
 Interna werden zu Vertrag, sobald jemand sie benutzt.
 
 ---
 
-## 4 · Testebenen und Agenten-Budget
+## 4 · Testebenen, Hooks und CI
 
-Dreistufiges Testbudget — gezielt, Zweig, Tor — wie in der Host-Suite etabliert.
+Dreistufiges Testbudget — gezielt, Zweig, Tor.
 
-| Ebene | Wann | Befehl |
-| ----- | ---- | ------ |
-| **1 — gezielt** | je Teilaufgabe | `npx vitest run <pfad>` · `npx playwright test <spec>` |
-| **2 — Zweig** | Teilaufgaben fertig | `npm run typecheck` + `npm run lint` |
-| **3 — Tor** | vor Merge / CI | `npm run verify` |
+| Ebene           | Wann                           | Befehl                                                 |
+| --------------- | ------------------------------ | ------------------------------------------------------ |
+| **1 — gezielt** | je Teilaufgabe                 | `npx vitest run <pfad>` · `npx playwright test <spec>` |
+| **2 — Zweig**   | Teilaufgaben fertig / pre-push | `npm run check:fast`                                   |
+| **3 — Tor**     | Ready-for-review-PR / CI       | `npm run verify`                                       |
 
-`verify` = `typecheck` + `lint` + die vier Prüfungen aus § 3 + `test:unit` + `test:behaviour`.
+`check:fast` = `typecheck` + `lint` + die vier Prüfungen aus § 3 (ohne Tests).
+`verify` = `check:fast` + `test:unit` + `test:behaviour`.
+
+TSDoc-Blöcke (`/** */`) müssen syntaktisch gültig sein (`tsdoc/syntax` in ESLint). Der
+Custom-Tag `@covers` (Spec-Regel-Ids an Tests) ist in `tsdoc.json` deklariert.
+
+### Git-Hooks (Husky)
+
+| Hook         | Befehl                                                 |
+| ------------ | ------------------------------------------------------ |
+| `pre-commit` | `lint-staged` — Prettier + ESLint auf gestagte Dateien |
+| `commit-msg` | Commitlint (Conventional Commits)                      |
+| `pre-push`   | `npm run check:fast`                                   |
+
+### CI
+
+GitHub Actions (`.github/workflows/ci.yml`) läuft nur auf nicht-draftigen Pull Requests
+(`opened` / `synchronize` / `reopened` / `ready_for_review`). Zwei parallele Jobs:
+`check` (`check:fast`) und `test` (`test:unit` + `test:behaviour`).
 
 > **Agenten führen ausschließlich Ebene 1 aus.** Nicht `verify`, nicht die vollen Suiten.
 > Deren Ausgabe ist lang, ihre Laufzeit auch, und der Erkenntnisgewinn gegenüber dem
@@ -132,22 +150,22 @@ Dreistufiges Testbudget — gezielt, Zweig, Tor — wie in der Host-Suite etabli
 `SPEC.md` § 13.4 ist keine Bequemlichkeit, sondern die Voraussetzung für I5: Zeigergesten
 brauchen Warten auf Layout, Kommandos nicht.
 
-| # | Regel |
-| - | ----- |
-| E1 | Verhaltenstests lösen Zustände über die Kommandoschnittstelle aus. |
-| E2 | Geprüft wird über den Inspector (§ 13.3) oder das gerenderte Ergebnis — nie über interne Objekte der Komponente. |
-| E3 | Echte Maus- und Scrollbedienung bleibt möglich und wird stichprobenartig geprüft, ist aber nicht der Testpfad. |
+| #   | Regel                                                                                                            |
+| --- | ---------------------------------------------------------------------------------------------------------------- |
+| E1  | Verhaltenstests lösen Zustände über die Kommandoschnittstelle aus.                                               |
+| E2  | Geprüft wird über den Inspector (§ 13.3) oder das gerenderte Ergebnis — nie über interne Objekte der Komponente. |
+| E3  | Echte Maus- und Scrollbedienung bleibt möglich und wird stichprobenartig geprüft, ist aber nicht der Testpfad.   |
 
 ---
 
 ## 6 · Benchmark
 
-| # | Regel |
-| - | ----- |
-| BM1 | `BUDGETS.json` wird **vor** dem ersten Lauf gefüllt (SPEC B1) und liegt unter Versionskontrolle. |
+| #   | Regel                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------ |
+| BM1 | `BUDGETS.json` wird **vor** dem ersten Lauf gefüllt (SPEC B1) und liegt unter Versionskontrolle.                               |
 | BM2 | Jeder Lauf schreibt nach `bench/results/<datum>-<commit>.json`. Ergebnisse werden eingecheckt — sonst gibt es keine Zeitreihe. |
-| BM3 | Der Lauf schlägt fehl, wenn ein Budget verfehlt wird. Budget anheben statt Ursache beheben ist unzulässig (B2). |
-| BM4 | Korpus wird aus festem Seed erzeugt, nie eingecheckt. |
+| BM3 | Der Lauf schlägt fehl, wenn ein Budget verfehlt wird. Budget anheben statt Ursache beheben ist unzulässig (B2).                |
+| BM4 | Korpus wird aus festem Seed erzeugt, nie eingecheckt.                                                                          |
 
 ---
 
@@ -159,12 +177,12 @@ schlechter.
 
 **Für Cursor** ergänzend schmale, glob-gebundene Regeln:
 
-| Datei | `globs:` | Inhalt |
-| ----- | -------- | ------ |
-| `.cursor/rules/core.mdc` | `src/core/**` | I8, keine Engine-Importe, keine Domänenbegriffe |
-| `.cursor/rules/sync.mdc` | `src/sync/**` | § 7.3 Ablauf, Atomarität, Reentrancy (§ 11.1 Punkt 5) |
-| `.cursor/rules/view.mdc` | `src/view/**` | I4 Scroll-Owner, Guards an einer Stelle (I6) |
-| `.cursor/rules/tests.mdc` | `tests/**` | `@covers` Pflicht, kein Warten auf Zeit, Kommandos statt Gesten |
+| Datei                     | `globs:`      | Inhalt                                                          |
+| ------------------------- | ------------- | --------------------------------------------------------------- |
+| `.cursor/rules/core.mdc`  | `src/core/**` | I8, keine Engine-Importe, keine Domänenbegriffe                 |
+| `.cursor/rules/sync.mdc`  | `src/sync/**` | § 7.3 Ablauf, Atomarität, Reentrancy (§ 11.1 Punkt 5)           |
+| `.cursor/rules/view.mdc`  | `src/view/**` | I4 Scroll-Owner, Guards an einer Stelle (I6)                    |
+| `.cursor/rules/tests.mdc` | `tests/**`    | `@covers` Pflicht, kein Warten auf Zeit, Kommandos statt Gesten |
 
 ### Definition of Done je Aufgabe
 
@@ -186,14 +204,14 @@ schlechter.
 
 ## 8 · Reihenfolge des Aufbaus
 
-| Schritt | Inhalt |
-| ------- | ------ |
-| 1 | `SPEC.md`, `AGENTS.md`, `SETUP.md`, Lizenz (SPEC O2) |
-| 2 | Tooling: TypeScript, Vitest, Playwright, Lint — ohne Anwendungscode |
-| 3 | Die vier Prüfskripte aus § 3, **bevor** Anwendungscode entsteht |
-| 4 | Korpusgenerator + `BUDGETS.json` |
-| 5 | Neuer, schlanker Spike gegen G1–G3 (SPEC § 16.1) — die Architektur aus § 11.2 ist als Zielbild entschieden, aber in diesem Repository noch nicht belegt; dieser Schritt belegt sie |
-| 6 | Phase 1 nach SPEC § 16 |
+| Schritt | Inhalt                                                                                                                                                                             |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1       | `SPEC.md`, `AGENTS.md`, `SETUP.md`, Lizenz (SPEC O2)                                                                                                                               |
+| 2       | Tooling: TypeScript, Vitest, Playwright, Lint — ohne Anwendungscode                                                                                                                |
+| 3       | Die vier Prüfskripte aus § 3, **bevor** Anwendungscode entsteht                                                                                                                    |
+| 4       | Korpusgenerator + `BUDGETS.json`                                                                                                                                                   |
+| 5       | Neuer, schlanker Spike gegen G1–G3 (SPEC § 16.1) — die Architektur aus § 11.2 ist als Zielbild entschieden, aber in diesem Repository noch nicht belegt; dieser Schritt belegt sie |
+| 6       | Phase 1 nach SPEC § 16                                                                                                                                                             |
 
 Schritt 3 vor Schritt 6 ist Absicht: Prüfungen, die erst nachträglich eingeführt werden,
 finden einen Berg von Verstößen vor und werden dann abgeschaltet statt befolgt.

@@ -1,7 +1,7 @@
 /**
- * Fenced code blocks (` ``` ` / `~~~`). CommonMark-shaped: indent 0–3, marker
- * length ≥ 3, close with the same character and at least that length. Unclosed
- * fences run to EOF. Pure string scan — no CM6 (I8).
+ * Fenced code blocks (triple-backtick or `~~~`). CommonMark-shaped: indent 0–3,
+ * marker length ≥ 3, close with the same character and at least that length.
+ * Unclosed fences run to EOF. Pure string scan — no CM6 (I8).
  */
 
 export interface FenceRange {

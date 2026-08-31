@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Generic protected-range widget building blocks (src/view/widgets/protected.ts).
  * Non-editable, non-deletable widgets; recipe: spikes/heading-widgets/protected-heading.ts.
@@ -61,7 +62,9 @@ function makeView(): { view: EditorView; ranges: StateField<ProtectedRange[]> } 
     extensions: [
       ranges,
       protectedWidgetExtension(ranges, (doc, range, activeMatch) => {
-        const local = activeMatch ? { from: activeMatch.from - range.from, to: activeMatch.to - range.from } : null;
+        const local = activeMatch
+          ? { from: activeMatch.from - range.from, to: activeMatch.to - range.from }
+          : null;
         return new RecordingWidget(doc.slice(range.from, range.to), local);
       }),
     ],
@@ -73,7 +76,10 @@ function makeView(): { view: EditorView; ranges: StateField<ProtectedRange[]> } 
 describe("preventProtectedDeletionFilter", () => {
   it("blocks a pure deletion (Backspace/Delete) that touches a protected range", () => {
     const ranges = rangesField();
-    const state = EditorState.create({ doc: DOC, extensions: [ranges, preventProtectedDeletionFilter(ranges)] });
+    const state = EditorState.create({
+      doc: DOC,
+      extensions: [ranges, preventProtectedDeletionFilter(ranges)],
+    });
     const headingFrom = headingRanges(DOC)[0]!.from;
     const tr = state.update({ changes: { from: headingFrom, to: headingFrom + 1, insert: "" } });
     expect(tr.state.doc.toString()).toBe(DOC); // rejected — doc unchanged
@@ -81,7 +87,10 @@ describe("preventProtectedDeletionFilter", () => {
 
   it("allows an edit that inserts replacement text (typing over selection, Find & Replace)", () => {
     const ranges = rangesField();
-    const state = EditorState.create({ doc: DOC, extensions: [ranges, preventProtectedDeletionFilter(ranges)] });
+    const state = EditorState.create({
+      doc: DOC,
+      extensions: [ranges, preventProtectedDeletionFilter(ranges)],
+    });
     const h = headingRanges(DOC)[0]!;
     const tr = state.update({ changes: { from: h.from, to: h.to, insert: "## Renamed" } });
     expect(tr.state.doc.toString()).toContain("## Renamed");
@@ -89,7 +98,10 @@ describe("preventProtectedDeletionFilter", () => {
 
   it("leaves edits outside any protected range untouched", () => {
     const ranges = rangesField();
-    const state = EditorState.create({ doc: DOC, extensions: [ranges, preventProtectedDeletionFilter(ranges)] });
+    const state = EditorState.create({
+      doc: DOC,
+      extensions: [ranges, preventProtectedDeletionFilter(ranges)],
+    });
     const tr = state.update({ changes: { from: 0, to: 6, insert: "" } }); // "before"
     expect(tr.state.doc.toString().startsWith("\n## Heading One")).toBe(true);
   });
@@ -150,8 +162,12 @@ describe("protected widget find/replace integration", () => {
     const { view } = makeView();
     const one = headingRanges(DOC).find((r) => DOC.slice(r.from, r.to).includes("Heading One"))!;
     const two = headingRanges(DOC).find((r) => DOC.slice(r.from, r.to).includes("Heading Two"))!;
-    view.dispatch({ effects: setProtectedActiveMatch.of({ from: one.from + 3, to: one.from + 10 }) });
-    view.dispatch({ effects: setProtectedActiveMatch.of({ from: two.from + 3, to: two.from + 10 }) });
+    view.dispatch({
+      effects: setProtectedActiveMatch.of({ from: one.from + 3, to: one.from + 10 }),
+    });
+    view.dispatch({
+      effects: setProtectedActiveMatch.of({ from: two.from + 3, to: two.from + 10 }),
+    });
 
     const marks = view.dom.querySelectorAll("[data-active-from]");
     expect(marks.length).toBe(1);

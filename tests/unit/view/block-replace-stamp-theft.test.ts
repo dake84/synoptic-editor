@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Empirical check of the project lore about `block: true` vs next-heading
  * line decorations (stamps). Documents what CM6 actually does today.
@@ -9,18 +10,8 @@
  * @covers FM9, HS1, I6
  */
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  EditorState,
-  RangeSetBuilder,
-  StateField,
-  type Extension,
-} from "@codemirror/state";
-import {
-  Decoration,
-  EditorView,
-  WidgetType,
-  type DecorationSet,
-} from "@codemirror/view";
+import { EditorState, RangeSetBuilder, StateField, type Extension } from "@codemirror/state";
+import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 
 import {
   protectedWidgetExtension,
@@ -30,9 +21,7 @@ import {
 const DOC = ["## Alpha", "alpha body", "## Beta", "beta body"].join("\n");
 
 /** Doc with FM between headings — the frontmatter-hide lore scenario. */
-const DOC_FM = ["## Alpha", "", "---", "id: beta", "---", "", "## Beta", "beta body"].join(
-  "\n",
-);
+const DOC_FM = ["## Alpha", "", "---", "id: beta", "---", "", "## Beta", "beta body"].join("\n");
 
 function headingLines(doc: string): { from: number; to: number; text: string }[] {
   const out: { from: number; to: number; text: string }[] = [];
@@ -125,10 +114,7 @@ function protectedRange(from: number, to: number): Extension {
     create: () => [{ from, to }],
     update: (value) => value,
   });
-  return [
-    ranges,
-    protectedWidgetExtension(ranges, () => new ProbeWidget("protected")),
-  ];
+  return [ranges, protectedWidgetExtension(ranges, () => new ProbeWidget("protected"))];
 }
 
 function mount(doc: string, extra: Extension): { parent: HTMLElement; view: EditorView } {
@@ -186,10 +172,7 @@ describe("block replace vs next-heading stamps (empirical)", () => {
 
   it("block:true on first heading including trailing \\n: Beta keeps stamp", () => {
     const alpha = headingLines(DOC)[0]!;
-    const { parent, view } = mount(
-      DOC,
-      blockRangeField(alpha.from, alpha.to + 1, "block+nl"),
-    );
+    const { parent, view } = mount(DOC, blockRangeField(alpha.from, alpha.to + 1, "block+nl"));
     // Observed 2026-08-20: AGENTS "steals next ATX" lore does NOT hold for this range.
     expect(observeBeta(parent).hasProbeStamp1).toBe(true);
     view.destroy();

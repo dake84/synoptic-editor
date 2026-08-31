@@ -7,10 +7,10 @@
  *
  * This module owns only the UI (keybindings, panel DOM, next/prev/replace/replace-all
  * wiring) — it does not know how search or replacement work. Hosts inject a
- * `FindReplaceController` (e.g. backed by `Session`'s `ViewHandle.find/findNext/
- * findPrev/replace/replaceAll`, see src/api.ts) via `findReplaceControllerFacet`.
- * Substring matching and visible-selection behavior live in the controller;
- * this panel just calls it.
+ * `FindReplaceController` (for example one backed by a session view handle's
+ * find / findNext / findPrev / replace / replaceAll methods; see `src/api.ts`)
+ * via `findReplaceControllerFacet`. Substring matching and visible-selection
+ * behavior live in the controller; this panel just calls it.
  */
 
 import { Facet, StateEffect, StateField, type Extension } from "@codemirror/state";
@@ -24,7 +24,10 @@ export interface FindReplaceController {
   replaceAll(text: string): void;
 }
 
-export const findReplaceControllerFacet = Facet.define<FindReplaceController, FindReplaceController | null>({
+export const findReplaceControllerFacet = Facet.define<
+  FindReplaceController,
+  FindReplaceController | null
+>({
   combine: (v) => v[0] ?? null,
 });
 
@@ -38,14 +41,17 @@ const panelModeField = StateField.define<PanelMode>({
     for (const e of tr.effects) if (e.is(setPanelMode)) return e.value;
     return value;
   },
-  provide: (field) => showPanel.from(field, (mode) => (mode === "closed" ? null : createFindReplacePanel)),
+  provide: (field) =>
+    showPanel.from(field, (mode) => (mode === "closed" ? null : createFindReplacePanel)),
 });
 
 function openPanel(view: EditorView, mode: "find" | "replace"): boolean {
   view.dispatch({ effects: setPanelMode.of(mode) });
   // Panel DOM mounts synchronously via `showPanel`; focus the query input next tick.
   requestAnimationFrame(() => {
-    const input = view.dom.querySelector<HTMLInputElement>(".syn-find-panel input[data-role='query']");
+    const input = view.dom.querySelector<HTMLInputElement>(
+      ".syn-find-panel input[data-role='query']",
+    );
     input?.focus();
     input?.select();
   });

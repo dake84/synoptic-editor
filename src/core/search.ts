@@ -9,12 +9,18 @@ import { findInlineMarks, inlineDelimiterRanges } from "./inline-markers.js";
 import { projectTree } from "./tree.js";
 import type { Range, StructureSchema, Tree } from "./types.js";
 
+/** Whether a search hit sits in author prose or YAML/metadata. */
 export type SearchHitClass = "prose" | "metadata";
 
+/** One find-in-document match. */
 export interface SearchHit {
+  /** Stable hit id for replace. */
   id: string;
+  /** Inclusive start offset. */
   from: number;
+  /** Exclusive end offset. */
   to: number;
+  /** Projection class. */
   class: SearchHitClass;
 }
 
@@ -115,7 +121,8 @@ export function searchSegments(doc: string, opts: SearchOptions): Segment[] {
     // Skip past frontmatter if somehow overlapping (ownRange usually starts at FM)
     const proseStart = Math.max(titleFrom, node.frontmatter ? node.frontmatter.to : titleFrom);
     const comments = findHtmlComments(doc, ownFrom, ownTo);
-    const hideScopeTitle = opts.hideHeadingNodeId !== undefined && node.id === opts.hideHeadingNodeId;
+    const hideScopeTitle =
+      opts.hideHeadingNodeId !== undefined && node.id === opts.hideHeadingNodeId;
     if (!hideScopeTitle && titleFrom < titleTo) {
       const titleHoles: Range[] = [
         ...comments,
@@ -213,8 +220,7 @@ function mergeAdjacent(segments: Segment[]): Segment[] {
 let hitSeq = 0;
 
 type CompiledQuery =
-  | { kind: "literal"; needle: string; caseSensitive: boolean }
-  | { kind: "regex"; re: RegExp };
+  { kind: "literal"; needle: string; caseSensitive: boolean } | { kind: "regex"; re: RegExp };
 
 function compileQuery(query: string, opts: FindMatchOptions): CompiledQuery | null {
   if (opts.regex) {
@@ -290,7 +296,10 @@ export function findInDocument(doc: string, opts: SearchOptions): SearchHit[] {
     });
   }
 
-  const toSource = (proj: number, preferEnd: boolean): { offset: number; class: SearchHitClass } => {
+  const toSource = (
+    proj: number,
+    preferEnd: boolean,
+  ): { offset: number; class: SearchHitClass } => {
     for (let i = 0; i < map.length; i++) {
       const seg = map[i]!;
       if (proj < seg.projFrom || proj > seg.projTo) continue;

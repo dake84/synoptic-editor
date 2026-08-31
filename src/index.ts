@@ -9,10 +9,21 @@ import type { Extension } from "@codemirror/state";
 import { extraLockedGuards as extraLockedEditGuards } from "./view/guards/locked-ranges.js";
 import { extraLockedParkFilter } from "./view/guards/park-selection.js";
 
+/**
+ * Create a synoptic editing session for one markdown document.
+ *
+ * @param opts - Document, schema, optional policy and shared timeline
+ * @returns Host-facing {@link Session}
+ */
 export function createSession(opts: CreateSessionOptions): Session {
   return createSessionImpl(opts);
 }
 
+/**
+ * Create a host-owned timeline (one per project; inject into every session).
+ *
+ * @returns Empty {@link Timeline}
+ */
 export function createTimeline(): Timeline {
   return createTimelineImpl();
 }
@@ -46,7 +57,12 @@ export { insertListPrefix, setHeadingLevel, toggleWrapSelection } from "./view/c
 export { unfoldOverlappingFolds } from "./view/unfold.js";
 export { paddedVisibleRanges } from "./view/viewport.js";
 export { intervalsOverlap, scrollElementIntoViewIfNeeded } from "./view/scrollport.js";
-export { wysiwygGuards, headingMarkers, maskBackslashRanges, frontmatterLockFilter } from "./view/guards/wysiwyg.js";
+export {
+  wysiwygGuards,
+  headingMarkers,
+  maskBackslashRanges,
+  frontmatterLockFilter,
+} from "./view/guards/wysiwyg.js";
 export { structureJoinFilter } from "./view/guards/structure-join.js";
 export { headingUnitGuards, headingUnitAtBoundary } from "./view/guards/heading-units.js";
 export { hiddenFrontmatterGuards } from "./view/frontmatter-hide.js";
@@ -56,13 +72,25 @@ export {
   hostWriteAnnotation,
 } from "./view/guards/locked-ranges.js";
 export { extraLockedParkFilter } from "./view/guards/park-selection.js";
+/**
+ * Extra locked-range guards (atomic ranges plus optional selection park).
+ *
+ * @param opts - Pass `{ park: false }` to skip selection parking
+ * @returns CodeMirror extension bag
+ */
 export function extraLockedGuards(opts?: { park?: boolean }): Extension {
   const edit = extraLockedEditGuards();
   if (opts?.park === false) return edit;
   return [edit, extraLockedParkFilter()];
 }
 export { parkSelectionInState } from "./view/guards/park-selection.js";
-export { projectTree, frontmatterRanges, paddedFrontmatterRanges, hiddenFrontmatterRanges, headingUnitRanges } from "./core/tree.js";
+export {
+  projectTree,
+  frontmatterRanges,
+  paddedFrontmatterRanges,
+  hiddenFrontmatterRanges,
+  headingUnitRanges,
+} from "./core/tree.js";
 export { findHtmlComments } from "./core/html-comments.js";
 export { findInlineMarks, inlineDelimiterRanges } from "./core/inline-markers.js";
 export { findInDocument } from "./core/search.js";
