@@ -91,7 +91,52 @@ export function insertListPrefix(view: EditorView, marker: "-" | "1."): void {
 }
 
 /**
- * C3: wrap the selection; empty caret expands to the word on the line.
+ * Whether `open`/`close` sit immediately outside `[from, to)` without being
+ * part of a longer run of the same character (so `*` does not peel `**`).
+ */
+function hasOuterWrap(doc: string, from: number, to: number, open: string, close: string): boolean {
+  if (from < open.length || to + close.length > doc.length) return false;
+  if (doc.slice(from - open.length, from) !== open) return false;
+  if (doc.slice(to, to + close.length) !== close) return false;
+  const oc = open[0];
+  if (oc !== undefined && [...open].every((c) => c === oc)) {
+    if (from > open.length && doc[from - open.length - 1] === oc) return false;
+  }
+  const cc = close[0];
+  if (cc !== undefined && [...close].every((c) => c === cc)) {
+    if (to + close.length < doc.length && doc[to + close.length] === cc) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether `text` itself begins and ends with `open`/`close` as a single wrap
+ * layer (one-char markers must not be the edge of a longer run).
+ */
+function isSelfWrapped(text: string, open: string, close: string): boolean {
+  if (text.length < open.length + close.length) return false;
+  if (!text.startsWith(open) || !text.endsWith(close)) return false;
+  const oc = open[0];
+  if (oc !== undefined && open.length === 1 && text[open.length] === oc) return false;
+  const cc = close[0];
+  if (cc !== undefined && close.length === 1 && text[text.length - close.length - 1] === cc) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Strip every occurrence of the wrap markers from `text` (word-like normalize).
+ */
+function stripWrapMarkers(text: string, open: string, close: string): string {
+  let next = text.split(open).join("");
+  if (close !== open) next = next.split(close).join("");
+  return next;
+}
+
+/**
+ * C3: word-like toggle wrap — unwrap when already wrapped, otherwise normalize
+ * inner markers of this kind and wrap once. Empty caret expands to the word.
  *
  * @param view - Focused editor view
  * @param open - Opening marker (e.g. `**`)
@@ -105,10 +150,37 @@ export function toggleWrapSelection(view: EditorView, open: string, close = open
     from = line.from + local.from;
     to = line.from + local.to;
   }
-  const selected = view.state.doc.sliceString(from, to);
+  const doc = view.state.doc.toString();
+
+  if (hasOuterWrap(doc, from, to, open, close)) {
+    view.dispatch({
+      changes: [
+        { from: to, to: to + close.length, insert: "" },
+        { from: from - open.length, to: from, insert: "" },
+      ],
+      selection: EditorSelection.range(from - open.length, to - open.length),
+      annotations: formatCommandAnnotation.of(true),
+    });
+    view.focus();
+    return;
+  }
+
+  const selected = doc.slice(from, to);
+  if (isSelfWrapped(selected, open, close)) {
+    const inner = selected.slice(open.length, selected.length - close.length);
+    view.dispatch({
+      changes: { from, to, insert: inner },
+      selection: EditorSelection.range(from, from + inner.length),
+      annotations: formatCommandAnnotation.of(true),
+    });
+    view.focus();
+    return;
+  }
+
+  const stripped = stripWrapMarkers(selected, open, close);
   view.dispatch({
-    changes: { from, to, insert: `${open}${selected}${close}` },
-    selection: EditorSelection.range(from + open.length, from + open.length + selected.length),
+    changes: { from, to, insert: `${open}${stripped}${close}` },
+    selection: EditorSelection.range(from + open.length, from + open.length + stripped.length),
     annotations: formatCommandAnnotation.of(true),
   });
   view.focus();
