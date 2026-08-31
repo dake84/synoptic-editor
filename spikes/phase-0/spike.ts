@@ -747,7 +747,7 @@ export function placeCaret(session: SpikeSession, viewId: string, where: CaretWh
   const doc = slot.state.doc.toString();
   const range = viewRange(slot.state);
   if (!range || range.lost) return;
-  let pos = range.from;
+  let pos: number;
   if (where === "end-of-scope") {
     pos = range.to > range.from ? range.to - 1 : range.from;
   } else if (where === "fence") {
