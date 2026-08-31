@@ -24,7 +24,12 @@ function wordRangeInLine(lineText: string, local: number): { from: number; to: n
   return { from, to };
 }
 
-/** C1: replace the current line's ATX prefix with `depth` hashes plus one space. */
+/**
+ * C1: replace the current line's ATX prefix with `depth` hashes plus one space.
+ *
+ * @param view - Focused editor view
+ * @param depth - Heading depth 1–6
+ */
 export function setHeadingLevel(view: EditorView, depth: number): void {
   const n = Math.min(6, Math.max(1, Math.floor(depth)));
   const line = view.state.doc.lineAt(view.state.selection.main.from);
@@ -39,7 +44,12 @@ export function setHeadingLevel(view: EditorView, depth: number): void {
   view.focus();
 }
 
-/** C2: add, switch, or strip a list marker on the current line. */
+/**
+ * C2: add, switch, or strip a list marker on the current line.
+ *
+ * @param view - Focused editor view
+ * @param marker - Bullet (`-`) or ordered (`1.`) marker
+ */
 export function insertListPrefix(view: EditorView, marker: "-" | "1."): void {
   const sel = view.state.selection.main.from;
   const line = view.state.doc.lineAt(sel);
@@ -49,8 +59,7 @@ export function insertListPrefix(view: EditorView, marker: "-" | "1."): void {
 
   if (match) {
     const existing = match[0].slice(indent.length);
-    const same =
-      existing === markerText || (marker === "1." && /^\d+\.[ \t]+$/.test(existing));
+    const same = existing === markerText || (marker === "1." && /^\d+\.[ \t]+$/.test(existing));
     if (same) {
       const next = `${indent}${line.text.slice(match[0].length)}`;
       view.dispatch({
@@ -81,7 +90,13 @@ export function insertListPrefix(view: EditorView, marker: "-" | "1."): void {
   view.focus();
 }
 
-/** C3: wrap the selection; empty caret expands to the word on the line. */
+/**
+ * C3: wrap the selection; empty caret expands to the word on the line.
+ *
+ * @param view - Focused editor view
+ * @param open - Opening marker (e.g. `**`)
+ * @param close - Closing marker; defaults to `open`
+ */
 export function toggleWrapSelection(view: EditorView, open: string, close = open): void {
   let { from, to } = view.state.selection.main;
   if (from === to) {

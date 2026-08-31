@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Wysiwyg input escape (SPEC.md L2, L3).
  */

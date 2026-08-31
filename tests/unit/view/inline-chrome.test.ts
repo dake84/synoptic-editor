@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Wysiwyg inline chrome DOM (SPEC.md § 8.6).
  */

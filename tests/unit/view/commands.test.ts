@@ -1,6 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
- *
  * Markdown source commands (SPEC.md C1–C3).
  */
 import { EditorSelection, EditorState } from "@codemirror/state";

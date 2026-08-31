@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Host block-replace ranges suppress Synoptic FM hide / marker hide on the
  * same span (no overlapping Decoration.replace).

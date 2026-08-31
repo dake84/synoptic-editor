@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Chip atom delete (SPEC.md W3).
  */
@@ -72,7 +73,11 @@ describe("chip atom delete (W3)", () => {
       }),
       parent,
     });
-    const event = new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true });
+    const event = new KeyboardEvent("keydown", {
+      key: "Backspace",
+      bubbles: true,
+      cancelable: true,
+    });
     view.contentDOM.dispatchEvent(event);
     expect(view.state.doc.toString()).toBe("See  here.");
     view.destroy();
@@ -83,9 +88,9 @@ describe("chip atom delete (W3)", () => {
     const doc = `See ${HTML_CHIP} here.`;
     const openEnd = doc.indexOf(">") + 1;
     const closeStart = doc.indexOf("</item-ref>");
-    expect(isExactChipDelete(doc, doc.indexOf("<"), doc.indexOf("<") + HTML_CHIP.length, "html-ref")).toBe(
-      true,
-    );
+    expect(
+      isExactChipDelete(doc, doc.indexOf("<"), doc.indexOf("<") + HTML_CHIP.length, "html-ref"),
+    ).toBe(true);
     const state = stateWith(doc, "html-ref");
     const tr = state.update({
       changes: { from: openEnd, to: closeStart, insert: "" },

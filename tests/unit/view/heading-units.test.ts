@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Heading units (LH1–LH4).
  */
@@ -16,7 +17,10 @@ import {
   hiddenFrontmatterGuards,
   hostWriteAnnotation,
 } from "../../../src/index.js";
-import { headingUnitAtBoundary, selectHeadingUnitBackward } from "../../../src/view/guards/heading-units.js";
+import {
+  headingUnitAtBoundary,
+  selectHeadingUnitBackward,
+} from "../../../src/view/guards/heading-units.js";
 import { FIXTURE_SCHEMA } from "../../fixtures/corpus.js";
 
 const DOC = `---

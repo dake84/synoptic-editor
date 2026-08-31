@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Heading stamps (SPEC.md § 8.7 HS1–HS3, T134).
  */

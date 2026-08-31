@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Source `#` demote of a child heading must not collapse the parent excerpt
  * (SPEC EX1/EX6) and must undo (I3/T113).

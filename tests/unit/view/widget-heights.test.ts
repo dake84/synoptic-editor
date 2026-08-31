@@ -1,14 +1,12 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Block widget height contract (SPEC.md FM8, P6).
  * No time-waiting: estimatedHeight must equal the height toDOM sets synchronously.
  */
 import { describe, expect, it } from "vitest";
-import {
-  formBlockHeight,
-  FrontmatterFormWidget,
-} from "../../../src/view/widgets/form.js";
+import { formBlockHeight, FrontmatterFormWidget } from "../../../src/view/widgets/form.js";
 import { PILL_BLOCK_HEIGHT, PillWidget } from "../../../src/view/widgets/pills.js";
 
 describe("heading-near block widget heights", () => {

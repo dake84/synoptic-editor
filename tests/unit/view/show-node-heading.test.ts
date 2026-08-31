@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Scope heading visibility (SPEC.md § 3.3 SNH1–SNH4, T133).
  */

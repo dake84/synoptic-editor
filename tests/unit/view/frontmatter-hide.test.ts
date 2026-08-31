@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Hidden frontmatter (FM9): leading blank after the previous heading stays visible.
  */

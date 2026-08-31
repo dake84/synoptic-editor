@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Presentation scroll freeze (SPEC.md V11, T147, T148).
  * happy-dom does not apply CM6 scrollIntoView — assert the dispatched offset.

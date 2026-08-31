@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
+
 /**
- * @vitest-environment happy-dom
  *
  * Golden visual-line map (Wave 2 / TASK-0026.02). Pins line-block offsets and
  * locked ranges for a representative wysiwyg document so a caret/height-map
@@ -51,7 +52,11 @@ function visualLineMap(ev: EditorView): LineMapRow[] {
           ? lineDom.closest(".cm-line")
           : lineDom.parentElement?.closest(".cm-line");
       const classes =
-        el instanceof HTMLElement ? Array.from(el.classList).filter((c) => c !== "cm-line").sort() : [];
+        el instanceof HTMLElement
+          ? Array.from(el.classList)
+              .filter((c) => c !== "cm-line")
+              .sort()
+          : [];
       rows.push({
         from: block.from,
         to: block.to,
