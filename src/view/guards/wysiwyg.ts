@@ -12,6 +12,7 @@ import { headingUnitRanges, hiddenFrontmatterRanges } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
 import { hostWriteAnnotation } from "./locked-ranges.js";
+import { formatCommandAnnotation } from "../commands.js";
 import { chipAtomForDelete } from "./chips.js";
 import { headingMarkers, maskPairs } from "./markers.js";
 import { selectionParkFilter } from "./park-selection.js";
@@ -291,6 +292,11 @@ export function wysiwygGuards(opts?: {
         if (blocked) return [];
       }
 
+      // C4: C1–C3 format commands insert authoritative Markdown markers, so the L2
+      // masking below is skipped for them. The atom/overlap expansion still runs —
+      // a format command must not split an existing marker run (L1).
+      const formatCommand = tr.annotation(formatCommandAnnotation) === true;
+
       const startDoc = tr.startState.doc.toString();
       const markers = headingMarkers(startDoc);
       const pairs = maskPairs(startDoc, 0, startDoc.length);
@@ -313,7 +319,7 @@ export function wysiwygGuards(opts?: {
           }
         }
         const raw = inserted.toString();
-        const insert = escapeMarkdown(raw);
+        const insert = formatCommand ? raw : escapeMarkdown(raw);
         if (insert !== raw) rewritten = true;
         pieces.push({ from, to, insert });
       });

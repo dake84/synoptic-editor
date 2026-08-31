@@ -86,7 +86,7 @@ function buildTree(rng: () => number, targetCount: number, schema: StructureSche
   const roots: TreeNode[] = [];
   const openParents: TreeNode[] = [];
   let idCounter = 0;
-  let count = 0;
+  let count: number;
 
   function makeNode(rank: number): TreeNode {
     idCounter += 1;

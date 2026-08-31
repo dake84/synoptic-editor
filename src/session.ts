@@ -449,7 +449,7 @@ export class Session implements PublicSession {
     let scrollAt: TrackedPositionId;
     let handedOut = false;
 
-    let ancestry: string[] = [];
+    let ancestry: string[];
     if (opts.state) {
       const saved = (opts.state.findState ?? {}) as { ancestry?: string[] };
       ancestry = saved.ancestry ?? [];

@@ -182,8 +182,8 @@ function scanDelimRuns(doc: string, from: number, to: number, holes: readonly Ra
     const after = charAfter(doc, i + len);
     const leftFlanking = !isWs(after) && (!isPunct(after) || isWs(before) || isPunct(before));
     const rightFlanking = !isWs(before) && (!isPunct(before) || isWs(after) || isPunct(after));
-    let canOpen = false;
-    let canClose = false;
+    let canOpen: boolean;
+    let canClose: boolean;
     if (ch === "*") {
       canOpen = leftFlanking;
       canClose = rightFlanking;
