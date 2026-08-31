@@ -140,6 +140,24 @@ describe("headingUnitGuards inline", () => {
     expect(doc).toContain("Prose.");
   });
 
+  /** @covers LH4, T143, L1 */
+  it("spaces-only title: delete spaces one by one then drop the unit (dogfood C04)", () => {
+    // L1: ATX atom is `##` + one separator; further spaces are title.
+    const spacesOnly = CHILD.replace("## Child", "##    ");
+    const { view } = mount(spacesOnly, "inline");
+    const titleEnd = spacesOnly.indexOf("##    ") + "##    ".length;
+    view.dispatch({ selection: EditorSelection.cursor(titleEnd) });
+    // Three title spaces → three deletes; last one must clear the unit (LH4).
+    for (let i = 0; i < 3; i++) {
+      deleteCharBackward(view);
+    }
+    const doc = view.state.doc.toString();
+    expect(doc).not.toContain("id: n1");
+    expect(doc).not.toMatch(/^##/m);
+    expect(doc).toContain("id: n0");
+    expect(doc).toContain("Prose.");
+  });
+
   /** @covers LH4, T143 */
   it("Backspace on an already-empty ATX line deletes the unit", () => {
     const empty = CHILD.replace("## Child", "## ");

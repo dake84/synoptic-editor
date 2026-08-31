@@ -56,6 +56,39 @@ describe("markdown commands (C1–C3)", () => {
     expect(view.state.selection.main.to).toBe(7);
     view.destroy();
   });
+
+  /** @covers C3 */
+  it("toggles bold wrap off when the selection is already wrapped (dogfood C06)", () => {
+    const view = mount("**Hello**");
+    view.dispatch({ selection: EditorSelection.range(2, 7) });
+    toggleWrapSelection(view, "**");
+    expect(view.state.doc.toString()).toBe("Hello");
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(5);
+    view.destroy();
+  });
+
+  /** @covers C3 */
+  it("word-like: whole-sentence select on mixed bold normalizes to one bold run", () => {
+    const doc = "**hello** was geht?";
+    const view = mount(doc);
+    view.dispatch({ selection: EditorSelection.range(0, doc.length) });
+    toggleWrapSelection(view, "**");
+    expect(view.state.doc.toString()).toBe("**hello was geht?**");
+    expect(view.state.selection.main.from).toBe(2);
+    expect(view.state.selection.main.to).toBe(2 + "hello was geht?".length);
+    view.destroy();
+  });
+
+  /** @covers C3 */
+  it("word-like: second toggle on a fully bold sentence unwraps", () => {
+    const doc = "**hello was geht?**";
+    const view = mount(doc);
+    view.dispatch({ selection: EditorSelection.range(0, doc.length) });
+    toggleWrapSelection(view, "**");
+    expect(view.state.doc.toString()).toBe("hello was geht?");
+    view.destroy();
+  });
 });
 
 function guardedMount(doc: string, anchor = 0, structureLocked = false): EditorView {
