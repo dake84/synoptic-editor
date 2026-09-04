@@ -4,7 +4,6 @@
 
 import {
   Annotation,
-  EditorState,
   Facet,
   RangeSetBuilder,
   StateField,
@@ -19,6 +18,7 @@ import { hiddenFrontmatterRanges, headingUnitRanges } from "../../core/tree.js";
 import type { Range, StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
 import { headingMarkers, maskPairs } from "./markers.js";
+import { namedChangeFilter } from "./filter-trace.js";
 
 /** Host-contributed locks (replaced or hidden lines). Combined with scanner locks (L6). */
 export const extraLockedRanges = Facet.define<readonly Range[], readonly Range[]>({
@@ -72,8 +72,7 @@ function coveredByUnit(range: Range, units: readonly Range[]): boolean {
 /** Scanner-owned wysiwyg locks (not host widgets). */
 export function synopticLockedRanges(doc: string, opts: LockedRangeOpts = {}): Range[] {
   const style = opts.inlineRefStyle ?? "attribute-block";
-  const units =
-    opts.headingEditingLocked && opts.schema ? headingUnitRanges(doc, opts.schema) : [];
+  const units = opts.headingEditingLocked && opts.schema ? headingUnitRanges(doc, opts.schema) : [];
   return [
     ...units,
     ...headingMarkers(doc).filter((r) => !coveredByUnit(r, units)),
@@ -99,7 +98,7 @@ function extraLockIntersects(fromA: number, toA: number, span: Range): boolean {
 
 /** Block raw edits that touch {@link extraLockedRanges}. L5 writes use {@link hostWriteAnnotation}. */
 export function extraLockedEditFilter(): Extension {
-  return EditorState.changeFilter.of((tr) => {
+  return namedChangeFilter("extraLockedEditFilter", (tr) => {
     if (!tr.docChanged) return true;
     if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) return true;
     if (tr.annotation(syncAnnotation)) return true;

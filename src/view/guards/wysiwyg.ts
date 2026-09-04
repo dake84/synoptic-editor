@@ -3,7 +3,15 @@
  * Installed only on wysiwyg view states — source does not get this extension.
  */
 
-import { Annotation, ChangeSet, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
+import {
+  Annotation,
+  ChangeSet,
+  EditorSelection,
+  EditorState,
+  Prec,
+  Transaction,
+  type Extension,
+} from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { findChips, type InlineRefStyle } from "../../core/chips.js";
 import { findHtmlComments } from "../../core/html-comments.js";
@@ -15,6 +23,7 @@ import { hostWriteAnnotation } from "./locked-ranges.js";
 import { formatCommandAnnotation } from "../commands.js";
 import { chipAtomForDelete } from "./chips.js";
 import { headingMarkers, maskPairs } from "./markers.js";
+import { namedTransactionFilter } from "./filter-trace.js";
 import { selectionParkFilter } from "./park-selection.js";
 import { structureJoinFilter } from "./structure-join.js";
 
@@ -25,7 +34,10 @@ export const frontmatterWriteAnnotation = Annotation.define<boolean>();
 
 export type FrontmatterSchemaArg = StructureSchema | ((state: EditorState) => StructureSchema);
 
-function resolveFrontmatterSchema(schema: FrontmatterSchemaArg, state: EditorState): StructureSchema {
+function resolveFrontmatterSchema(
+  schema: FrontmatterSchemaArg,
+  state: EditorState,
+): StructureSchema {
   return typeof schema === "function" ? schema(state) : schema;
 }
 
@@ -64,7 +76,7 @@ export function frontmatterLockFilter(
   schema: FrontmatterSchemaArg,
   opts?: FrontmatterLockOpts,
 ): Extension {
-  return EditorState.transactionFilter.of((tr) => {
+  return namedTransactionFilter("frontmatterLockFilter", (tr) => {
     if (!tr.docChanged) return tr;
     if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) return tr;
     if (tr.annotation(syncAnnotation)) return tr;
@@ -113,7 +125,15 @@ export function escapeMarkdown(text: string): string {
       out += "\\-";
       continue;
     }
-    if (ch === "#" || ch === "*" || ch === "_" || ch === ">" || ch === "`" || ch === "<" || ch === "\\") {
+    if (
+      ch === "#" ||
+      ch === "*" ||
+      ch === "_" ||
+      ch === ">" ||
+      ch === "`" ||
+      ch === "<" ||
+      ch === "\\"
+    ) {
       out += `\\${ch}`;
       continue;
     }
@@ -273,7 +293,7 @@ export function wysiwygGuards(opts?: {
       });
       return true;
     }),
-    EditorState.transactionFilter.of((tr) => {
+    namedTransactionFilter("wysiwygGuards", (tr) => {
       if (!tr.docChanged) return tr;
       if (tr.annotation(syncAnnotation)) return tr;
 
@@ -301,7 +321,10 @@ export function wysiwygGuards(opts?: {
       const markers = headingMarkers(startDoc);
       const pairs = maskPairs(startDoc, 0, startDoc.length);
       const comments = findHtmlComments(startDoc);
-      const chips = findChips(startDoc, 0, startDoc.length, inlineRefStyle).map((c) => ({ from: c.from, to: c.to }));
+      const chips = findChips(startDoc, 0, startDoc.length, inlineRefStyle).map((c) => ({
+        from: c.from,
+        to: c.to,
+      }));
       const inlineDels = inlineDelimiterRanges(findInlineMarks(startDoc));
       let rewritten = false;
       const pieces: { from: number; to: number; insert: string }[] = [];
@@ -326,15 +349,12 @@ export function wysiwygGuards(opts?: {
 
       if (!rewritten) return tr;
       const userEvent = tr.annotation(Transaction.userEvent);
-      const mapped = tr.startState.selection.map(
-        ChangeSet.of(pieces, tr.startState.doc.length),
-        1,
-      );
+      const mapped = tr.startState.selection.map(ChangeSet.of(pieces, tr.startState.doc.length), 1);
       return {
         changes: pieces,
         selection: mapped,
         filter: false,
-        annotations: userEvent ? [Transaction.userEvent.of(userEvent)] : undefined,
+        ...(userEvent ? { annotations: [Transaction.userEvent.of(userEvent)] } : {}),
       };
     }),
   ];

@@ -6,7 +6,6 @@
 
 import {
   EditorSelection,
-  EditorState,
   Facet,
   Prec,
   RangeSetBuilder,
@@ -20,6 +19,7 @@ import { headingUnitRanges, projectTree } from "../../core/tree.js";
 import type { Range, StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
 import { extraLockedRanges, hostWriteAnnotation } from "./locked-ranges.js";
+import { namedChangeFilter, namedTransactionFilter } from "./filter-trace.js";
 import { frontmatterWriteAnnotation } from "./wysiwyg.js";
 
 const headingUnitSchema = Facet.define<StructureSchema, StructureSchema | undefined>({
@@ -45,8 +45,7 @@ export function headingUnitAtBoundary(
     return units.find((unit) => head === unit.to);
   }
   return units.find(
-    (unit) =>
-      head === unit.from || (head === unit.from - 1 && head >= 0 && doc[head] === "\n"),
+    (unit) => head === unit.from || (head === unit.from - 1 && head >= 0 && doc[head] === "\n"),
   );
 }
 
@@ -60,7 +59,7 @@ function coversUnit(fromA: number, toA: number, unit: Range): boolean {
 }
 
 function headingUnitEditFilter(): Extension {
-  return EditorState.changeFilter.of((tr) => {
+  return namedChangeFilter("headingUnitEditFilter", (tr) => {
     if (!tr.docChanged) return true;
     if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) return true;
     if (tr.annotation(syncAnnotation)) return true;
@@ -140,11 +139,7 @@ function overlapsExtraLock(state: EditorStateType, from: number, to: number): bo
   return false;
 }
 
-function unitForEmptyTitleAt(
-  doc: string,
-  schema: StructureSchema,
-  pos: number,
-): Range | undefined {
+function unitForEmptyTitleAt(doc: string, schema: StructureSchema, pos: number): Range | undefined {
   for (const node of projectTree(doc, schema).nodes.values()) {
     if (node.title.trim() !== "") continue;
     if (pos < node.heading.from || pos > node.heading.to) continue;
@@ -198,7 +193,7 @@ function isHuskTrigger(tr: Transaction): boolean {
 
 /** LH4: clearing a title removes the heading unit. Extra-locked host chrome is skipped. */
 function emptyHeadingUnitGuards(schema: StructureSchema): Extension {
-  const filter = EditorState.transactionFilter.of((tr) => {
+  const filter = namedTransactionFilter("emptyHeadingUnitGuards", (tr) => {
     if (!tr.docChanged) return tr;
     if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) return tr;
     if (tr.annotation(syncAnnotation)) return tr;
@@ -237,9 +232,7 @@ function emptyHeadingUnitGuards(schema: StructureSchema): Extension {
       selection: EditorSelection.create(
         sole && sole.insert === ""
           ? [EditorSelection.cursor(sole.from)]
-          : tr.newSelection.ranges.map((range) =>
-              EditorSelection.range(range.anchor, range.head),
-            ),
+          : tr.newSelection.ranges.map((range) => EditorSelection.range(range.anchor, range.head)),
         0,
       ),
       effects: tr.effects,

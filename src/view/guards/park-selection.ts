@@ -14,6 +14,7 @@ import {
 import { hiddenFrontmatterRanges } from "../../core/tree.js";
 import type { Range, StructureSchema } from "../../core/types.js";
 import { extraLockedRanges, lockedRangesFromState, type LockedRangeOpts } from "./locked-ranges.js";
+import { namedTransactionFilter } from "./filter-trace.js";
 
 type FrontmatterSchemaArg = StructureSchema | ((state: EditorState) => StructureSchema);
 
@@ -76,7 +77,10 @@ export function parkSelection(
   return EditorSelection.create(next, sel.mainIndex);
 }
 
-export function parkSelectionInState(state: EditorState, opts: LockedRangeOpts = {}): EditorSelection {
+export function parkSelectionInState(
+  state: EditorState,
+  opts: LockedRangeOpts = {},
+): EditorSelection {
   return parkSelection(state.selection, lockedRangesFromState(state, opts), state.doc.toString());
 }
 
@@ -86,9 +90,7 @@ function needsEofParkNewline(doc: string, ranges: readonly Range[], sel: EditorS
   if (doc[doc.length - 1] === "\n") return false;
   const atEof = sel.ranges.some((r) => r.head === doc.length || r.anchor === doc.length);
   if (!atEof) return false;
-  return ranges.some(
-    (r) => r.to === doc.length && r.to > r.from && isBlockInsertHole(doc, r.from),
-  );
+  return ranges.some((r) => r.to === doc.length && r.to > r.from && isBlockInsertHole(doc, r.from));
 }
 
 function isLineBlockLock(doc: string, range: Range): boolean {
@@ -107,7 +109,10 @@ function lineStartsWithAtx(doc: string, pos: number): boolean {
 }
 
 /** Shared boundary of two abutting line-block locks (`a.to === b.from`). */
-function adjacentBlockJoin(doc: string, ranges: readonly Range[]): { join: number; first: Range } | null {
+function adjacentBlockJoin(
+  doc: string,
+  ranges: readonly Range[],
+): { join: number; first: Range } | null {
   const blocks = ranges.filter((r) => isLineBlockLock(doc, r));
   for (const a of blocks) {
     for (const b of blocks) {
@@ -129,8 +134,7 @@ function caretAtJoin(sel: EditorSelection, parked: EditorSelection, join: number
 function selTouchesBlockLock(sel: EditorSelection, lock: Range, doc: string): boolean {
   const atFrom = lock.to > lock.from && isBlockInsertHole(doc, lock.from);
   return sel.ranges.some((r) => {
-    const hit = (p: number) =>
-      (p > lock.from && p < lock.to) || (atFrom && p === lock.from);
+    const hit = (p: number) => (p > lock.from && p < lock.to) || (atFrom && p === lock.from);
     return hit(r.head) || hit(r.anchor);
   });
 }
@@ -164,7 +168,7 @@ function parkFollowUpOf(tr: Transaction, ranges: readonly Range[]) {
 }
 
 function parkFilter(rangesOf: (tr: Transaction) => readonly Range[]): Extension {
-  return EditorState.transactionFilter.of((tr) => {
+  return namedTransactionFilter("selectionParkFilter", (tr) => {
     if (tr.annotation(parkFollowUp)) return tr;
     const follow = parkFollowUpOf(tr, rangesOf(tr));
     if (!follow) return tr;
@@ -188,7 +192,10 @@ export function selectionParkFilter(opts: LockedRangeOpts = {}): Extension {
 /** L7 for host extra locks only (isolated mounts without hidden FM). */
 export function extraLockedParkFilter(): Extension {
   return parkFilter((tr) => {
-    if (tr.startState.facet(hiddenFrontmatterOwnsPark) || tr.state.facet(hiddenFrontmatterOwnsPark)) {
+    if (
+      tr.startState.facet(hiddenFrontmatterOwnsPark) ||
+      tr.state.facet(hiddenFrontmatterOwnsPark)
+    ) {
       return [];
     }
     return tr.state.facet(extraLockedRanges);

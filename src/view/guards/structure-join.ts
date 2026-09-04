@@ -2,13 +2,15 @@
  * Block deletions that would join prose with a schema heading or bound YAML (L8).
  */
 
-import { EditorState, type EditorState as EditorStateType, type Extension } from "@codemirror/state";
+import { type EditorState as EditorStateType, type Extension } from "@codemirror/state";
 import { hiddenFrontmatterRanges, projectTree } from "../../core/tree.js";
 import type { StructureSchema } from "../../core/types.js";
 import { syncAnnotation } from "../../sync/engine.js";
 import { hostWriteAnnotation } from "./locked-ranges.js";
+import { namedChangeFilter } from "./filter-trace.js";
 
-export type StructureJoinSchemaArg = StructureSchema | ((state: EditorStateType) => StructureSchema);
+export type StructureJoinSchemaArg =
+  StructureSchema | ((state: EditorStateType) => StructureSchema);
 
 function resolveSchema(schema: StructureJoinSchemaArg, state: EditorStateType): StructureSchema {
   return typeof schema === "function" ? schema(state) : schema;
@@ -97,7 +99,7 @@ function deletionJoinsStructure(
 
 /** Isolated wysiwyg / session chrome: prose must not merge into schema headings or bound YAML. */
 export function structureJoinFilter(schema: StructureJoinSchemaArg): Extension {
-  return EditorState.changeFilter.of((tr) => {
+  return namedChangeFilter("structureJoinFilter", (tr) => {
     if (!tr.docChanged) return true;
     if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) return true;
     if (tr.annotation(syncAnnotation)) return true;

@@ -17,6 +17,7 @@ import {
 import { EditorView, keymap } from "@codemirror/view";
 import { syncAnnotation } from "../sync/engine.js";
 import type { Range } from "../core/types.js";
+import { namedChangeFilter, namedTransactionFilter } from "./guards/filter-trace.js";
 
 export interface ScopeRange {
   from: number;
@@ -122,13 +123,13 @@ function editsNeighbour(tr: Transaction, to: number): boolean {
  */
 export function scopeFence(rangeField: StateField<ScopeRange>): Extension {
   return [
-    EditorState.changeFilter.of((tr) => {
+    namedChangeFilter("scopeFence.change", (tr) => {
       if (!tr.docChanged || tr.annotation(syncAnnotation)) return true;
       const range = tr.startState.field(rangeField);
       if (range.lost) return [0, tr.startState.doc.length];
       return suppressOutside(range, tr.startState.doc.length);
     }),
-    EditorState.transactionFilter.of((tr) => {
+    namedTransactionFilter("scopeFence", (tr) => {
       if (tr.annotation(syncAnnotation)) return tr;
       const range = tr.startState.field(rangeField);
       if (range.lost) return tr.docChanged ? { changes: [], filter: false } : tr;
@@ -179,7 +180,12 @@ export function scopeCopyHandler(rangeField: StateField<ScopeRange>): Extension 
   });
 }
 
-export function clippedCopy(doc: string, selFrom: number, selTo: number, range: ScopeRange): string {
+export function clippedCopy(
+  doc: string,
+  selFrom: number,
+  selTo: number,
+  range: ScopeRange,
+): string {
   if (range.lost) return "";
   const from = Math.max(selFrom, range.from);
   const to = Math.min(selTo, range.to);
